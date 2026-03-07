@@ -1,0 +1,121 @@
+# src/config.py
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+# ======================
+# 加载项目级 config.yaml
+# ======================
+# 优先级：config.yaml > 环境变量 > 代码默认值
+
+_yaml_cfg: dict = {}
+
+def _load_yaml_config() -> dict:
+    """尝试从项目根目录加载 config.yaml，找不到则返回空 dict。"""
+    global _yaml_cfg
+    if _yaml_cfg:
+        return _yaml_cfg
+
+    # 向上查找 config.yaml：先从 src/ 的父目录（即项目根）找
+    candidates = [
+        Path(__file__).resolve().parent.parent / "config.yaml",
+        Path.cwd() / "config.yaml",
+    ]
+    for p in candidates:
+        if p.is_file():
+            try:
+                import yaml
+                with open(p, "r", encoding="utf-8") as f:
+                    _yaml_cfg = yaml.safe_load(f) or {}
+                break
+            except ImportError:
+                # PyYAML 未安装，回退到纯环境变量模式
+                break
+            except Exception:
+                break
+    return _yaml_cfg
+
+
+def _get(yaml_key_path: str, env_key: str, default: str) -> str:
+    """
+    按优先级获取配置值：
+      1. config.yaml 中的嵌套键（用 . 分隔，如 'dashscope.api_key'）
+      2. 环境变量
+      3. 代码默认值
+    """
+    # 1) 尝试从 yaml 读取
+    cfg = _load_yaml_config()
+    parts = yaml_key_path.split(".")
+    node = cfg
+    for part in parts:
+        if isinstance(node, dict) and part in node:
+            node = node[part]
+        else:
+            node = None
+            break
+    if node is not None and str(node).strip():
+        return str(node).strip()
+
+    # 2) 尝试环境变量
+    env_val = os.getenv(env_key)
+    if env_val is not None and env_val.strip():
+        return env_val.strip()
+
+    # 3) 默认值
+    return default
+
+
+# ======================
+# Embedding / 数据 / 索引
+# ======================
+EMBED_MODEL_NAME = _get("embedding.model_name", "EMBED_MODEL_NAME",
+                        "paraphrase-multilingual-MiniLM-L12-v2")
+
+DATA_PATH = _get("data_path", "DATA_PATH", "data/exhibits.txt")
+INDEX_PATH = _get("index_path", "INDEX_PATH", "index/exhibits.index")
+
+TOP_K = int(_get("retrieval.top_k", "TOP_K", "5"))
+THRESHOLD = float(_get("retrieval.threshold", "THRESHOLD", "0.5"))
+MARGIN = float(_get("retrieval.margin", "MARGIN", "0.08"))  # 动态 Top-k
+
+# ======================
+# LLM Provider 选择
+#   - dashscope: 走 DashScope API
+#   - ollama:    走本地 Ollama
+# ======================
+LLM_PROVIDER = _get("llm_provider", "LLM_PROVIDER", "dashscope").lower()
+
+# ======================
+# DashScope（API）配置
+# ======================
+QWEN_MODEL = _get("dashscope.model", "QWEN_MODEL", "qwen3.5-plus")
+TEMPERATURE = float(_get("dashscope.temperature", "TEMPERATURE", "0.3"))
+
+
+def get_api_key() -> str:
+    """
+    获取 DashScope API Key。
+    优先从 config.yaml 读取，其次环境变量。
+    """
+    key = _get("dashscope.api_key", "DASHSCOPE_API_KEY", "")
+    if not key:
+        raise RuntimeError(
+            "未配置 DashScope API Key，请在 config.yaml 的 dashscope.api_key "
+            "或环境变量 DASHSCOPE_API_KEY 中设置。"
+        )
+    return key
+
+
+# ======================
+# TTS
+# ======================
+VOICE = _get("tts.voice", "VOICE", "zh-CN-XiaoxiaoNeural")
+OUTPUT_DIR = _get("tts.output_dir", "OUTPUT_DIR", "outputs")
+
+# ======================
+# Ollama（本地）配置
+# ======================
+OLLAMA_BASE_URL = _get("ollama.base_url", "OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL = _get("ollama.model", "OLLAMA_MODEL", "qwen2.5:3b")
+OLLAMA_TEMPERATURE = float(_get("ollama.temperature", "OLLAMA_TEMPERATURE", str(TEMPERATURE)))

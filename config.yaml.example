@@ -1,0 +1,41 @@
+# ==============================================
+# Museum Guide - 项目配置文件示例
+# ==============================================
+# 使用说明：
+# 1. 复制此文件并重命名为 config.yaml
+# 2. 填入你的实际 API 密钥
+# 3. config.yaml 已被 .gitignore 忽略，不会被提交到版本库
+# ==============================================
+
+# ---------- LLM Provider 选择 ----------
+# 可选值：dashscope / ollama
+llm_provider: "dashscope"
+
+# ---------- DashScope（Qwen API）配置 ----------
+dashscope:
+  api_key: "你的DashScope API密钥"  # 请替换为实际的API密钥
+  model: "qwen3.5-plus"
+  temperature: 0.3
+
+# ---------- Ollama（本地）配置 ----------
+ollama:
+  base_url: "http://localhost:11434"
+  model: "qwen2.5:3b"
+  temperature: 0.3
+
+# ---------- Embedding / 数据 / 索引 ----------
+embedding:
+  model_name: "paraphrase-multilingual-MiniLM-L12-v2"
+
+data_path: "data/exhibits.txt"
+index_path: "index/exhibits.index"
+
+retrieval:
+  top_k: 5
+  threshold: 0.5
+  margin: 0.08
+
+# ---------- TTS ----------
+tts:
+  voice: "zh-CN-XiaoxiaoNeural"
+  output_dir: "outputs"

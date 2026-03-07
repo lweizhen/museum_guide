@@ -1,0 +1,35 @@
+# 敏感配置文件
+config.yaml
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# 构建产物
+index/
+outputs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 系统文件
+.DS_Store
+Thumbs.db
+nul
+
+# Streamlit
+.streamlit/secrets.toml
+
+# 环境变量
+.env
+.env.local
