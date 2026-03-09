@@ -8,9 +8,9 @@ from src.tts import text_to_mp3
 st.set_page_config(page_title="博物馆智能语音导览", layout="centered")
 
 st.title("🧭 博物馆智能语音导览助手")
-st.caption("RAG（FAISS语义检索） + 通义千问生成 + TTS语音播报")
+st.caption("RAG（FAISS语义检索） + 通义千问/本地大模型生成 + TTS语音播报")
 
-query = st.text_input("请输入你的问题：", placeholder="例如：青铜鼎的历史意义是什么？")
+query = st.text_input("请输入你的问题：", placeholder="例如：介绍一下马踏飞燕？")
 
 if st.button("生成讲解", type="primary"):
     if not query.strip():
