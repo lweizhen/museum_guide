@@ -1,7 +1,9 @@
 # AGENTS.md
 
 Guidance for autonomous coding agents working in this repository.
-This file is the operational source of truth for build/test/style expectations.
+This root file is the operational source of truth for build/test/style expectations.
+Directory-level `AGENTS.md` files may add local details, but should not duplicate
+or override this file unless they state a narrower rule explicitly.
 
 ## 1) Repository Snapshot
 
@@ -9,9 +11,13 @@ This file is the operational source of truth for build/test/style expectations.
 - App types: CLI (`run_cli.py`), Streamlit UI (`app.py`), offline eval (`eval_rag.py`)
 - Core architecture: text RAG with FAISS retrieval + LLM generation + TTS output
 - Multimodal status:
-  - Implemented: image retrieval with CLIP embeddings + artifact candidate linking + text RAG QA
-  - Planned for experiment: end-to-end multimodal LLM QA branch for side-by-side comparison
+  - Scheme A: image retrieval with CLIP embeddings + artifact candidate linking + text RAG QA
+  - Scheme B: true image-bearing multimodal LLM QA branch for side-by-side comparison
+  - Evaluation scripts now include terminal progress reporting for long full-run jobs
 - Dependencies are managed via `requirements.txt` (no Poetry/Pipenv/Conda lock files here)
+- Local rule hierarchy:
+  - `AGENTS.md`: full-project rules and commands
+  - `src/AGENTS.md`: focused notes for source-package modules only
 - No CI config or task runner (no Makefile, no tox, no pytest config found)
 
 ## 2) Rule Files Discovery
@@ -213,7 +219,7 @@ There is currently **no enforced linter/formatter config** in repo (no `pyprojec
 When making changes, use these safe local checks if tools are available:
 
 ```bash
-python -m compileall src app.py run_cli.py build_index.py eval_rag.py eval_scheme_b.py eval_scheme_a_cross_image.py prepare_combined_kb.py
+python -m compileall src app.py run_cli.py build_index.py build_image_index.py eval_rag.py eval_scheme_a.py eval_scheme_a_caption.py eval_scheme_a_cross_image.py eval_scheme_a_qa.py eval_scheme_b.py prepare_combined_kb.py prepare_multimodal_eval_dataset.py
 ```
 
 Optional (only if installed in your environment):
@@ -359,10 +365,12 @@ Follow existing style in `src/` and top-level scripts.
 ## 8) Modification Guardrails for Agents
 
 - Do not commit generated binaries or cache artifacts (`__pycache__`, large media outputs) unless task explicitly asks.
+- Do not commit generated eval/index artifacts from `outputs/` or `index/`; these are local runtime artifacts.
 - Avoid breaking public script entrypoints: `build_index.py`, `run_cli.py`, `app.py`, `eval_rag.py`.
 - If changing config keys/defaults, update both code and this AGENTS.md.
 - Prefer minimal, localized edits over broad refactors.
 - Keep backward compatibility for both DashScope and Ollama code paths.
+- If the user has a long evaluation running, avoid touching `outputs/` and avoid heavy concurrent GPU/CPU jobs unless needed.
 
 ## 9) Pre-Completion Checklist
 
