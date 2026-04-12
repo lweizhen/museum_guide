@@ -486,6 +486,22 @@ Keep both branches instead of replacing one with the other.
 - End-to-end response time
 - User experience clarity in Streamlit demo
 
+### Planned generation-quality evaluation upgrade
+
+Current rule-based QA scoring is useful for closed factual fields, but it is too
+strict for Chinese explanatory answers. Future work should keep traditional
+metrics as reproducible references while adding stronger semantic judging:
+
+- Keep ROUGE-L and Coverage for text overlap / evidence coverage.
+- Optionally report BLEU, METEOR, CIDEr, or SPICE as legacy comparison metrics,
+  but do not use them as the only conclusion for Chinese museum-guide answers.
+- Keep CLIPScore for image-text relevance in caption-style tasks.
+- Add an LLM-as-Judge evaluator for generated descriptions and open QA answers,
+  scoring factuality, groundedness, completeness, fluency, hallucination, and
+  overall quality against GT descriptions and retrieved evidence.
+- Prefer a judge model that is different from the generation model, and manually
+  audit a sample of judged cases for thesis credibility.
+
 ### Shared multimodal evaluation dataset
 
 To support both caption-generation-style evaluation and visual QA evaluation, the repo now
