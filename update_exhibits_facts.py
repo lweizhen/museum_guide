@@ -107,11 +107,6 @@ def main() -> None:
         action="store_true",
         help="实际写回文件（默认仅预览）",
     )
-    parser.add_argument(
-        "--backup",
-        action="store_true",
-        help="写回前生成 .bak 备份文件",
-    )
     args = parser.parse_args()
 
     path = Path(args.file)
@@ -136,18 +131,13 @@ def main() -> None:
 
     if not args.apply:
         print("\n当前为预览模式，未写回文件。")
-        print("如需应用修改，请执行: python update_exhibits_facts.py --apply --backup")
+        print("如需应用修改，请执行: python update_exhibits_facts.py --apply")
         return
 
     updated = "\n".join(new_lines) + ("\n" if original.endswith("\n") else "")
     if updated == original:
         print("\n没有实际变更，文件保持不变。")
         return
-
-    if args.backup:
-        backup_path = path.with_suffix(path.suffix + ".bak")
-        backup_path.write_text(original, encoding="utf-8")
-        print(f"已创建备份: {backup_path}")
 
     tmp_path = path.with_suffix(path.suffix + ".tmp")
     tmp_path.write_text(updated, encoding="utf-8")

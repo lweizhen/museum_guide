@@ -1,41 +1,48 @@
 # ==============================================
-# Museum Guide - 项目配置文件示例
+# Museum Guide - configuration example
 # ==============================================
-# 使用说明：
-# 1. 复制此文件并重命名为 config.yaml
-# 2. 填入你的实际 API 密钥
-# 3. config.yaml 已被 .gitignore 忽略，不会被提交到版本库
+# Usage:
+# 1. Copy this file to config.yaml.
+# 2. Fill in your own API key if you use DashScope.
+# 3. Do not commit config.yaml, because it may contain secrets.
 # ==============================================
 
-# ---------- LLM Provider 选择 ----------
-# 可选值：dashscope / ollama
-llm_provider: "dashscope"
+# Available values: "ollama" or "dashscope"
+llm_provider: "ollama"
 
-# ---------- DashScope（Qwen API）配置 ----------
 dashscope:
-  api_key: "你的DashScope API密钥"  # 请替换为实际的API密钥
+  api_key: "YOUR_DASHSCOPE_API_KEY"
   model: "qwen3.5-plus"
   temperature: 0.3
 
-# ---------- Ollama（本地）配置 ----------
 ollama:
   base_url: "http://localhost:11434"
-  model: "qwen2.5:3b"
+  model: "qwen2.5vl:3b"
   temperature: 0.3
+  timeout_seconds: 600
 
-# ---------- Embedding / 数据 / 索引 ----------
 embedding:
   model_name: "paraphrase-multilingual-MiniLM-L12-v2"
 
-data_path: "data/exhibits.txt"
+data_path: "data/exhibits_combined.txt"
 index_path: "index/exhibits.index"
+
+image_index:
+  csv_path: "bowuguozhongguo_names_filtered.csv"
+  image_cache_dir: "data/museumschina_images"
+  index_path: "index/exhibits_images.index"
+  meta_path: "index/exhibits_images_meta.json"
+  model_name: "clip-ViT-B-32"
+  top_k: 5
+  min_score: 0.55
+  min_gap: 0.03
+  max_images_per_item: 3
 
 retrieval:
   top_k: 5
   threshold: 0.5
-  margin: 0.08
+  margin: 0.15
 
-# ---------- TTS ----------
 tts:
   voice: "zh-CN-XiaoxiaoNeural"
   output_dir: "outputs"

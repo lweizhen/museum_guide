@@ -5,3 +5,6 @@ dashscope
 edge-tts
 streamlit
 pyyaml
+requests
+beautifulsoup4
+pillow

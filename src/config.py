@@ -72,8 +72,40 @@ def _get(yaml_key_path: str, env_key: str, default: str) -> str:
 EMBED_MODEL_NAME = _get("embedding.model_name", "EMBED_MODEL_NAME",
                         "paraphrase-multilingual-MiniLM-L12-v2")
 
-DATA_PATH = _get("data_path", "DATA_PATH", "data/exhibits.txt")
+DATA_PATH = _get("data_path", "DATA_PATH", "data/exhibits_combined.txt")
 INDEX_PATH = _get("index_path", "INDEX_PATH", "index/exhibits.index")
+
+IMAGE_CSV_PATH = _get(
+    "image_index.csv_path",
+    "IMAGE_CSV_PATH",
+    "bowuguozhongguo_names_filtered.csv",
+)
+IMAGE_CACHE_DIR = _get(
+    "image_index.image_cache_dir",
+    "IMAGE_CACHE_DIR",
+    "data/museumschina_images",
+)
+IMAGE_INDEX_PATH = _get(
+    "image_index.index_path",
+    "IMAGE_INDEX_PATH",
+    "index/exhibits_images.index",
+)
+IMAGE_META_PATH = _get(
+    "image_index.meta_path",
+    "IMAGE_META_PATH",
+    "index/exhibits_images_meta.json",
+)
+IMAGE_MODEL_NAME = _get(
+    "image_index.model_name",
+    "IMAGE_MODEL_NAME",
+    "clip-ViT-B-32",
+)
+IMAGE_TOP_K = int(_get("image_index.top_k", "IMAGE_TOP_K", "5"))
+IMAGE_MIN_SCORE = float(_get("image_index.min_score", "IMAGE_MIN_SCORE", "0.55"))
+IMAGE_MIN_GAP = float(_get("image_index.min_gap", "IMAGE_MIN_GAP", "0.03"))
+IMAGE_MAX_IMAGES_PER_ITEM = int(
+    _get("image_index.max_images_per_item", "IMAGE_MAX_IMAGES_PER_ITEM", "3")
+)
 
 TOP_K = int(_get("retrieval.top_k", "TOP_K", "5"))
 THRESHOLD = float(_get("retrieval.threshold", "THRESHOLD", "0.5"))
@@ -119,3 +151,6 @@ OUTPUT_DIR = _get("tts.output_dir", "OUTPUT_DIR", "outputs")
 OLLAMA_BASE_URL = _get("ollama.base_url", "OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = _get("ollama.model", "OLLAMA_MODEL", "qwen2.5:3b")
 OLLAMA_TEMPERATURE = float(_get("ollama.temperature", "OLLAMA_TEMPERATURE", str(TEMPERATURE)))
+OLLAMA_TIMEOUT_SECONDS = int(
+    _get("ollama.timeout_seconds", "OLLAMA_TIMEOUT_SECONDS", "600")
+)

@@ -7,7 +7,10 @@ This file is the operational source of truth for build/test/style expectations.
 
 - Language: Python 3.x
 - App types: CLI (`run_cli.py`), Streamlit UI (`app.py`), offline eval (`eval_rag.py`)
-- Core architecture: RAG with FAISS retrieval + LLM generation + TTS output
+- Core architecture: text RAG with FAISS retrieval + LLM generation + TTS output
+- Multimodal status:
+  - Implemented: image retrieval with CLIP embeddings + artifact candidate linking + text RAG QA
+  - Planned for experiment: end-to-end multimodal LLM QA branch for side-by-side comparison
 - Dependencies are managed via `requirements.txt` (no Poetry/Pipenv/Conda lock files here)
 - No CI config or task runner (no Makefile, no tox, no pytest config found)
 
@@ -31,6 +34,16 @@ Use these commands from repository root.
 python -m pip install -r requirements.txt
 ```
 
+### Build combined text knowledge base
+
+```bash
+python prepare_combined_kb.py
+```
+
+Expected artifact:
+
+- `data/exhibits_combined.txt`
+
 ### Build vector index (required before retrieval flows)
 
 ```bash
@@ -40,6 +53,17 @@ python build_index.py
 Expected artifact:
 
 - `index/exhibits.index`
+
+### Build image index (required before image retrieval flows)
+
+```bash
+python build_image_index.py
+```
+
+Expected artifacts:
+
+- `index/exhibits_images.index`
+- `index/exhibits_images_meta.json`
 
 ### Run CLI app
 
@@ -64,6 +88,124 @@ Expected artifacts:
 - `outputs/eval_results.csv`
 - `outputs/eval_summary.txt`
 
+### Run Scheme A multimodal evaluation
+
+```bash
+python eval_scheme_a.py
+```
+
+Optional:
+
+```bash
+python eval_scheme_a.py --limit 20
+python eval_scheme_a.py --with-llm
+```
+
+Expected artifacts:
+
+- `outputs/eval_scheme_a_results.csv`
+- `outputs/eval_scheme_a_summary.txt`
+
+### Run Scheme A multimodal QA evaluation
+
+```bash
+python eval_scheme_a_qa.py
+```
+
+Optional:
+
+```bash
+python eval_scheme_a_qa.py --limit-images 20
+python eval_scheme_a_qa.py --limit-images 20 --limit-questions 3
+python eval_scheme_a_qa.py --with-llm
+```
+
+Expected artifacts:
+
+- `outputs/eval_scheme_a_qa_results.csv`
+- `outputs/eval_scheme_a_qa_summary.txt`
+
+### Run Scheme A caption-generation evaluation
+
+```bash
+python eval_scheme_a_caption.py
+```
+
+Optional:
+
+```bash
+python eval_scheme_a_caption.py --limit-images 20
+python eval_scheme_a_caption.py --with-llm
+```
+
+Expected artifacts:
+
+- `outputs/eval_scheme_a_caption_results.csv`
+- `outputs/eval_scheme_a_caption_summary.txt`
+- `outputs/eval_scheme_a_caption_breakdown.json`
+
+### Run Scheme A cross-image retrieval evaluation
+
+```bash
+python eval_scheme_a_cross_image.py
+```
+
+Optional:
+
+```bash
+python eval_scheme_a_cross_image.py --limit-artifacts 20
+```
+
+Expected artifacts:
+
+- `outputs/eval_scheme_a_cross_image_results.csv`
+- `outputs/eval_scheme_a_cross_image_summary.txt`
+- `outputs/eval_scheme_a_cross_image_breakdown.json`
+
+### Run Scheme B multimodal QA evaluation
+
+```bash
+python eval_scheme_b.py
+```
+
+Optional:
+
+```bash
+python eval_scheme_b.py --mode direct --limit-images 5 --limit-questions 2
+python eval_scheme_b.py --mode grounded --limit-images 5 --limit-questions 2
+python eval_scheme_b.py --mode both --limit-images 5 --limit-questions 2 --max-calls 10
+python eval_scheme_b.py --mode grounded --limit-images 2 --limit-questions 1 --dry-run
+```
+
+Expected artifacts:
+
+- `outputs/eval_scheme_b_results.csv`
+- `outputs/eval_scheme_b_summary.txt`
+- `outputs/eval_scheme_b_breakdown.json`
+
+### Build unified multimodal evaluation dataset
+
+```bash
+python prepare_multimodal_eval_dataset.py
+```
+
+Optional:
+
+```bash
+python prepare_multimodal_eval_dataset.py --limit-artifacts 20
+```
+
+Expected artifacts:
+
+- `data/multimodal_eval/artifacts.jsonl`
+- `data/multimodal_eval/train.jsonl`
+- `data/multimodal_eval/val.jsonl`
+- `data/multimodal_eval/test.jsonl`
+- `data/multimodal_eval/train_images.jsonl`
+- `data/multimodal_eval/val_images.jsonl`
+- `data/multimodal_eval/test_images.jsonl`
+- `data/multimodal_eval/summary.json`
+
 ## 4) Lint / Format Commands
 
 There is currently **no enforced linter/formatter config** in repo (no `pyproject.toml`, `setup.cfg`, `.flake8`, etc.).
@@ -71,7 +213,7 @@ There is currently **no enforced linter/formatter config** in repo (no `pyprojec
 When making changes, use these safe local checks if tools are available:
 
 ```bash
-python -m compileall src app.py run_cli.py build_index.py eval_rag.py
+python -m compileall src app.py run_cli.py build_index.py eval_rag.py eval_scheme_b.py eval_scheme_a_cross_image.py prepare_combined_kb.py
 ```
 
 Optional (only if installed in your environment):
@@ -93,8 +235,12 @@ Current state:
 ### Existing smoke-test commands
 
 ```bash
+python prepare_combined_kb.py
 python build_index.py
+python build_image_index.py --limit 10
 python eval_rag.py
+python eval_scheme_a.py --limit 10
+python eval_scheme_b.py --mode grounded --limit-images 2 --limit-questions 1 --dry-run
 python run_cli.py
 ```
 
@@ -147,7 +293,10 @@ python -m pytest -k retriever -q
 - OpenAI-compatible: `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_TEMPERATURE` (yaml: `openai.*`)
 - DashScope: `DASHSCOPE_API_KEY`, `QWEN_MODEL`, `TEMPERATURE` (yaml: `dashscope.*`)
 - Ollama: `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_TEMPERATURE` (yaml: `ollama.*`)
+- Ollama timeout: `OLLAMA_TIMEOUT_SECONDS` (yaml: `ollama.timeout_seconds`)
 - Embedding / retrieval: `EMBED_MODEL_NAME`, `DATA_PATH`, `INDEX_PATH`, `TOP_K`, `THRESHOLD`, `MARGIN`
+- Default text KB path should point to `data/exhibits_combined.txt`, generated by `prepare_combined_kb.py`.
+- Image retrieval: `IMAGE_CSV_PATH`, `IMAGE_CACHE_DIR`, `IMAGE_INDEX_PATH`, `IMAGE_META_PATH`, `IMAGE_MODEL_NAME`, `IMAGE_TOP_K`, `IMAGE_MIN_SCORE`, `IMAGE_MIN_GAP`, `IMAGE_MAX_IMAGES_PER_ITEM`
 - TTS: `VOICE`, `OUTPUT_DIR`
 
 Agent behavior requirements:
@@ -224,3 +373,143 @@ Before finishing a code change, an agent should:
 3. Check imports and type hints for edited functions.
 4. Verify error messages are actionable.
 5. Summarize exactly what changed and how it was validated.
+
+## 10) Multimodal Architecture Roadmap
+
+This section records the intended system structure for the graduation project so later work
+stays aligned with the thesis plan and current implementation.
+
+### Current baseline: text RAG guide
+
+Flow:
+
+`user question -> text retriever -> prompt builder -> LLM -> TTS`
+
+Primary modules:
+
+- `src/retriever.py`
+- `src/prompt.py`
+- `src/llm.py`
+- `src/tts.py`
+- `app.py`
+- `run_cli.py`
+
+Role in project:
+
+- Stable baseline for museum guide QA
+- Main reference path for grounded answering and refusal behavior
+
+### Scheme A: pipeline-based multimodal QA (implemented direction)
+
+Flow:
+
+`uploaded image -> image embedding / FAISS search -> candidate artifact -> linked text query -> text KB retrieval -> LLM answer -> TTS`
+
+Primary modules:
+
+- `build_image_index.py`
+- `src/image_embedder.py`
+- `src/image_index.py`
+- `src/image_retriever.py`
+- `app.py`
+
+Current repo status:
+
+- Image indexing is available
+- Image upload entry is available in Streamlit
+- Low-confidence rejection is implemented with `min_score` and `min_gap`
+- Final answer generation still depends on text knowledge retrieval
+- `eval_scheme_a_cross_image.py` tests same-artifact different-image retrieval generalization
+
+Strengths:
+
+- Stronger controllability and explainability
+- Easier to trace mistakes to retrieval stage
+- Better fit for museum scenarios that prioritize factual grounding
+
+Risks:
+
+- If image retrieval picks the wrong artifact, downstream QA also drifts
+- Performance depends on image coverage and image quality
+
+### Scheme B: end-to-end multimodal QA (experimental branch)
+
+Target flow:
+
+`uploaded image + user question -> multimodal LLM -> answer -> optional TTS`
+
+Recommended grounded variant:
+
+`uploaded image + user question -> multimodal LLM extracts clues or draft recognition -> retrieve text KB -> multimodal LLM answers with image + retrieved context -> optional TTS`
+
+Current repo status:
+
+- `src/llm.py` now exposes a true image-bearing `call_multimodal_llm(...)` path
+- `src/prompt.py` now includes dedicated multimodal prompts for direct and grounded modes
+- `app.py` now exposes Scheme B as a selectable image QA experiment path
+- `eval_scheme_b.py` provides direct, grounded, and side-by-side offline evaluation
+
+Expected strengths:
+
+- More natural interaction
+- Potentially better handling of open-ended visual questions
+
+Expected risks:
+
+- More hallucination risk if not grounded by retrieval
+- Harder refusal calibration
+- Harder to explain failures in thesis and demo
+
+### Recommended product and experiment strategy
+
+Keep both branches instead of replacing one with the other.
+
+- Default demo path: Scheme A
+- Experimental comparison path: Scheme B
+- Thesis conclusion should compare reliability, flexibility, and latency instead of assuming one path is universally better
+
+### Planned comparison metrics
+
+- Top-1 artifact recognition accuracy
+- Top-3 artifact hit rate
+- Refusal accuracy on low-quality or out-of-knowledge-base images
+- Answer correctness on artifact facts
+- Groundedness / whether answer stays within retrievable evidence
+- End-to-end response time
+- User experience clarity in Streamlit demo
+
+### Shared multimodal evaluation dataset
+
+To support both caption-generation-style evaluation and visual QA evaluation, the repo now
+uses a shared artifact-level dataset generated by `prepare_multimodal_eval_dataset.py`.
+
+Dataset design principles:
+
+- Split by artifact instead of by image to avoid leakage across train/val/test.
+- Reuse current text KB as the source of `reference_description` and `qa_pairs`.
+- Keep both artifact-level JSONL files and image-level expanded JSONL files.
+- Preserve `detail_url`, `source_urls`, and `image_url` so later manual auditing remains possible.
+
+Recommended usage:
+
+- Caption generation:
+  compare model outputs against `reference_description`
+- Visual QA:
+  run questions from `qa_pairs` against the model and score answer correctness
+
+### Implementation priority
+
+1. Continue improving the text knowledge base quality because both branches depend on it.
+2. Stabilize Scheme A evaluation, including image recognition accuracy and refusal cases.
+3. Use `eval_scheme_b.py` to compare Scheme B direct and grounded modes against Scheme A.
+4. Run side-by-side experiments and record representative success/failure cases for the thesis.
+5. Only explore lightweight local fine-tuning or LoRA after the two-branch comparison is runnable.
+
+### Change management note
+
+When implementing future multimodal features, preserve the distinction between:
+
+- image retrieval + text RAG
+- true end-to-end multimodal LLM QA
+
+Do not describe Scheme A as end-to-end multimodal LLM QA in docs, code comments, or thesis text.

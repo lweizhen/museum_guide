@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Tuple, Optional
 
 from src.retriever import retrieve
 from src.llm import call_llm
+from src.progress import iter_progress
 
 
 # ------------------------------
@@ -184,7 +185,7 @@ def main():
         writer = csv.DictWriter(fcsv, fieldnames=fieldnames)
         writer.writeheader()
 
-        for item in items:
+        for item in iter_progress(items, label="eval_rag"):
             total += 1
             qid = (item.get("id") or "").strip()
             query = (item.get("query") or "").strip()

@@ -1,0 +1,30 @@
+{
+  "artifact_count": 377,
+  "image_count": 961,
+  "split_counts": {
+    "train": 270,
+    "val": 27,
+    "test": 80
+  },
+  "match_strategy_counts": {
+    "name+era+museum": 375,
+    "name": 2
+  },
+  "unmatched_count": 2,
+  "unmatched_examples": [
+    {
+      "group_key": "https://www.museumschina.cn/collection/details?id=81e64e686423481e8273ed29bcb902f0",
+      "name": "龙山文化骨镞",
+      "era": "新石器时代",
+      "museum": "菏泽市博物馆",
+      "detail_url": "https://www.museumschina.cn/collection/details?id=81e64e686423481e8273ed29bcb902f0"
+    },
+    {
+      "group_key": "https://www.museumschina.cn/collection/details?id=afa25fcd894d7486591b9d2f2d5e2a894",
+      "name": "末法国邮政发行的“武昌·开往汉口的摆渡船”明信片",
+      "era": "清",
+      "museum": "-",
+      "detail_url": "https://www.museumschina.cn/collection/details?id=afa25fcd894d7486591b9d2f2d5e2a894"
+    }
+  ]
+}
