@@ -154,3 +154,18 @@ OLLAMA_TEMPERATURE = float(_get("ollama.temperature", "OLLAMA_TEMPERATURE", str(
 OLLAMA_TIMEOUT_SECONDS = int(
     _get("ollama.timeout_seconds", "OLLAMA_TIMEOUT_SECONDS", "600")
 )
+
+# ======================
+# Judge LLM / semantic evaluation
+# ======================
+# provider:
+#   - same: use the normal text LLM path
+#   - dashscope: use DashScope text generation with judge.model
+#   - ollama: use Ollama text generation with judge.model
+#   - openai: use an OpenAI-compatible chat/completions endpoint
+JUDGE_PROVIDER = _get("judge.provider", "JUDGE_PROVIDER", "same").lower()
+JUDGE_MODEL = _get("judge.model", "JUDGE_MODEL", "")
+JUDGE_BASE_URL = _get("judge.base_url", "JUDGE_BASE_URL", "https://api.openai.com/v1")
+JUDGE_API_KEY = _get("judge.api_key", "JUDGE_API_KEY", "")
+JUDGE_TEMPERATURE = float(_get("judge.temperature", "JUDGE_TEMPERATURE", "0.0"))
+JUDGE_TIMEOUT_SECONDS = int(_get("judge.timeout_seconds", "JUDGE_TIMEOUT_SECONDS", "120"))

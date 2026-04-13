@@ -15,6 +15,12 @@ from dashscope import Generation, MultiModalConversation
 from PIL import Image
 
 from .config import (
+    JUDGE_API_KEY,
+    JUDGE_BASE_URL,
+    JUDGE_MODEL,
+    JUDGE_PROVIDER,
+    JUDGE_TEMPERATURE,
+    JUDGE_TIMEOUT_SECONDS,
     LLM_PROVIDER,
     OLLAMA_BASE_URL,
     OLLAMA_MODEL,
@@ -92,7 +98,7 @@ def _call_dashscope(prompt: str) -> str:
     raise RuntimeError(f"LLM调用失败：{resp.message}")
 
 
-def _post_ollama(payload: dict) -> str:
+def _post_ollama(payload: dict, timeout_seconds: int = OLLAMA_TIMEOUT_SECONDS) -> str:
     url = f"{OLLAMA_BASE_URL.rstrip('/')}/api/generate"
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
@@ -103,7 +109,7 @@ def _post_ollama(payload: dict) -> str:
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=OLLAMA_TIMEOUT_SECONDS) as resp:
+        with urllib.request.urlopen(req, timeout=timeout_seconds) as resp:
             raw = resp.read().decode("utf-8")
             obj = json.loads(raw)
             text = (obj.get("response") or "").strip()
@@ -129,16 +135,88 @@ def _post_ollama(payload: dict) -> str:
         ) from e
 
 
-def _call_ollama(prompt: str) -> str:
+def _call_ollama_model(
+    prompt: str,
+    model: str,
+    temperature: float,
+    timeout_seconds: int = OLLAMA_TIMEOUT_SECONDS,
+) -> str:
     payload = {
-        "model": OLLAMA_MODEL,
+        "model": model,
         "prompt": prompt,
         "stream": False,
         "options": {
-            "temperature": OLLAMA_TEMPERATURE,
+            "temperature": temperature,
         },
     }
-    return _post_ollama(payload)
+    return _post_ollama(payload, timeout_seconds=timeout_seconds)
+
+
+def _call_ollama(prompt: str) -> str:
+    return _call_ollama_model(prompt, OLLAMA_MODEL, OLLAMA_TEMPERATURE)
+
+
+def _call_dashscope_text_model(prompt: str, model: str, temperature: float) -> str:
+    dashscope.api_key = get_api_key()
+    resp = Generation.call(
+        model=model,
+        prompt=prompt,
+        temperature=temperature,
+    )
+
+    if resp.status_code == 200:
+        return (resp.output.text or "").strip()
+    raise RuntimeError(f"DashScope judge call failed: {resp.message}")
+
+
+def _call_openai_compatible(prompt: str, model: str) -> str:
+    if not JUDGE_API_KEY:
+        raise RuntimeError(
+            "Judge provider is openai, but no judge.api_key or JUDGE_API_KEY is configured."
+        )
+    if not model:
+        raise RuntimeError(
+            "Judge provider is openai, but no judge.model or JUDGE_MODEL is configured."
+        )
+
+    url = f"{JUDGE_BASE_URL.rstrip('/')}/chat/completions"
+    payload = {
+        "model": model,
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a strict museum QA evaluator. Return only valid JSON.",
+            },
+            {"role": "user", "content": prompt},
+        ],
+        "temperature": JUDGE_TEMPERATURE,
+    }
+    data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        url=url,
+        data=data,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {JUDGE_API_KEY}",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=JUDGE_TIMEOUT_SECONDS) as resp:
+            raw = resp.read().decode("utf-8")
+            obj = json.loads(raw)
+    except (TimeoutError, socket.timeout) as e:
+        raise RuntimeError(
+            f"Judge OpenAI-compatible request timed out after {JUDGE_TIMEOUT_SECONDS}s."
+        ) from e
+    except urllib.error.URLError as e:
+        raise RuntimeError(f"Judge OpenAI-compatible request failed: {e}") from e
+
+    try:
+        return obj["choices"][0]["message"]["content"].strip()
+    except (KeyError, IndexError, TypeError) as e:
+        raise RuntimeError(f"Unexpected judge response: {json.dumps(obj)[:300]}") from e
 
 
 def _encode_image_to_base64(image: Image.Image) -> str:
@@ -202,6 +280,40 @@ def call_llm(prompt: str) -> str:
 
     raise RuntimeError(
         f"未知 LLM_PROVIDER={LLM_PROVIDER}，可选：dashscope / ollama"
+    )
+
+
+def call_judge_llm(prompt: str) -> str:
+    """Call the configured semantic judge model.
+
+    The judge path is intentionally separate from the generation path so
+    evaluations can use a stronger or different model than the model under test.
+    """
+    provider = (JUDGE_PROVIDER or "same").strip().lower()
+
+    if provider in {"", "same"}:
+        return call_llm(prompt)
+
+    if provider == "dashscope":
+        return _call_dashscope_text_model(
+            prompt,
+            JUDGE_MODEL or QWEN_MODEL,
+            JUDGE_TEMPERATURE,
+        )
+
+    if provider == "ollama":
+        return _call_ollama_model(
+            prompt,
+            JUDGE_MODEL or OLLAMA_MODEL,
+            JUDGE_TEMPERATURE,
+            JUDGE_TIMEOUT_SECONDS,
+        )
+
+    if provider == "openai":
+        return _call_openai_compatible(prompt, JUDGE_MODEL)
+
+    raise RuntimeError(
+        f"Unknown JUDGE_PROVIDER={JUDGE_PROVIDER}; choose same / dashscope / ollama / openai."
     )
 
 

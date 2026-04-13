@@ -22,7 +22,7 @@ from src.eval_utils import (
 )
 from src.image_index import open_local_image
 from src.image_retriever import assess_image_match_confidence, search_image
-from src.llm import call_llm, call_multimodal_llm
+from src.llm import call_judge_llm, call_multimodal_llm
 from src.prompt import build_multimodal_direct_prompt, build_multimodal_grounded_prompt
 from src.progress import Progress
 from src.retriever import retrieve
@@ -77,7 +77,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--judge-llm",
         action="store_true",
-        help="Use the configured text LLM as an optional semantic judge.",
+        help="Use the configured judge LLM as an optional semantic evaluator.",
     )
     parser.add_argument(
         "--dry-run",
@@ -172,7 +172,7 @@ def _build_judge_prompt(question: str, gold_answer: str, model_answer: str) -> s
 
 
 def _judge_answer(question: str, gold_answer: str, model_answer: str) -> tuple[str, str, str]:
-    judge_raw = call_llm(_build_judge_prompt(question, gold_answer, model_answer))
+    judge_raw = call_judge_llm(_build_judge_prompt(question, gold_answer, model_answer))
     obj = parse_json_object(judge_raw)
     if not obj:
         return "", "", judge_raw[:300]

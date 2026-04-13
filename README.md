@@ -289,6 +289,17 @@ outputs/eval_scheme_b_summary.txt
 outputs/eval_scheme_b_breakdown.json
 ```
 
+Scheme B semantic judge mode:
+
+```bash
+python eval_scheme_b.py --mode grounded --limit-images 3 --limit-questions 1 --judge-llm
+```
+
+`--judge-llm` uses the separate `judge.*` settings in `config.yaml`.
+Default `judge.provider: "same"` reuses the normal text LLM. For more credible
+thesis evaluation, set `judge.provider` to `dashscope`, `ollama`, or `openai`
+and choose a judge model different from the generation model.
+
 ## 提示词文件为什么有多套模板
 
 `src/prompt.py` 里保留多套模板，是因为项目现在不止一种问答链路：
