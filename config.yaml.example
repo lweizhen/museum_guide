@@ -45,4 +45,4 @@ retrieval:
 
 tts:
   voice: "zh-CN-XiaoxiaoNeural"
-  output_dir: "outputs"
+  output_dir: "outputs/media"

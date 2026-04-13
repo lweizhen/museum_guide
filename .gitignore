@@ -13,7 +13,9 @@ build/
 
 # 构建产物
 index/
-outputs/
+outputs/*
+!outputs/
+!outputs/README.md
 
 # IDE
 .vscode/

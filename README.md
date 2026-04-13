@@ -252,8 +252,8 @@ python eval_rag.py
 输出：
 
 ```text
-outputs/eval_results.csv
-outputs/eval_summary.txt
+outputs/raw/eval_results.csv
+outputs/raw/eval_summary.txt
 ```
 
 ### 多模态统一评测集
@@ -348,9 +348,9 @@ python eval_scheme_b.py --mode grounded --limit-images 2 --limit-questions 1 --d
 输出：
 
 ```text
-outputs/eval_scheme_b_results.csv
-outputs/eval_scheme_b_summary.txt
-outputs/eval_scheme_b_breakdown.json
+outputs/raw/eval_scheme_b_results.csv
+outputs/raw/eval_scheme_b_summary.txt
+outputs/raw/eval_scheme_b_breakdown.json
 ```
 
 Scheme B semantic judge mode:
@@ -371,22 +371,22 @@ Recommended full-run workflow:
 python eval_scheme_b.py --mode both --stop-on-error
 
 # 2. Score the saved answers later with the configured judge model.
-python judge_scheme_b_results.py --input outputs/eval_scheme_b_results.csv
+python judge_scheme_b_results.py --input outputs/raw/eval_scheme_b_results.csv
 ```
 
 Useful judge-only options:
 
 ```bash
 python judge_scheme_b_results.py --mode grounded --limit 200
-python judge_scheme_b_results.py --input outputs/eval_scheme_b_results.csv --output outputs/eval_scheme_b_judged_results.csv --overwrite
+python judge_scheme_b_results.py --input outputs/raw/eval_scheme_b_results.csv --output outputs/judged/eval_scheme_b_judged_results.csv --overwrite
 ```
 
 Judge-only outputs:
 
 ```text
-outputs/eval_scheme_b_judged_results.csv
-outputs/eval_scheme_b_judged_summary.txt
-outputs/eval_scheme_b_judged_breakdown.json
+outputs/judged/eval_scheme_b_judged_results.csv
+outputs/judged/eval_scheme_b_judged_summary.txt
+outputs/judged/eval_scheme_b_judged_breakdown.json
 ```
 
 ## 提示词文件为什么有多套模板

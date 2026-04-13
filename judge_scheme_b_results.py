@@ -12,10 +12,10 @@ from src.llm import call_judge_llm
 from src.progress import Progress
 
 
-DEFAULT_INPUT = Path("outputs/eval_scheme_b_results.csv")
-DEFAULT_OUTPUT = Path("outputs/eval_scheme_b_judged_results.csv")
-DEFAULT_SUMMARY = Path("outputs/eval_scheme_b_judged_summary.txt")
-DEFAULT_BREAKDOWN = Path("outputs/eval_scheme_b_judged_breakdown.json")
+DEFAULT_INPUT = Path("outputs/raw/eval_scheme_b_results.csv")
+DEFAULT_OUTPUT = Path("outputs/judged/eval_scheme_b_judged_results.csv")
+DEFAULT_SUMMARY = Path("outputs/judged/eval_scheme_b_judged_summary.txt")
+DEFAULT_BREAKDOWN = Path("outputs/judged/eval_scheme_b_judged_breakdown.json")
 
 
 def parse_args() -> argparse.Namespace:
@@ -25,22 +25,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--input",
         default=str(DEFAULT_INPUT),
-        help="Existing Scheme B result CSV. Default: outputs/eval_scheme_b_results.csv",
+        help="Existing Scheme B result CSV. Default: outputs/raw/eval_scheme_b_results.csv",
     )
     parser.add_argument(
         "--output",
         default=str(DEFAULT_OUTPUT),
-        help="Judged result CSV. Default: outputs/eval_scheme_b_judged_results.csv",
+        help="Judged result CSV. Default: outputs/judged/eval_scheme_b_judged_results.csv",
     )
     parser.add_argument(
         "--summary",
         default=str(DEFAULT_SUMMARY),
-        help="Judged summary TXT. Default: outputs/eval_scheme_b_judged_summary.txt",
+        help="Judged summary TXT. Default: outputs/judged/eval_scheme_b_judged_summary.txt",
     )
     parser.add_argument(
         "--breakdown",
         default=str(DEFAULT_BREAKDOWN),
-        help="Judged breakdown JSON. Default: outputs/eval_scheme_b_judged_breakdown.json",
+        help="Judged breakdown JSON. Default: outputs/judged/eval_scheme_b_judged_breakdown.json",
     )
     parser.add_argument(
         "--mode",

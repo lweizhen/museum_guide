@@ -17,7 +17,7 @@ from src.progress import iter_progress
 # 配置区（按你当前目录结构写死）
 # ------------------------------
 EVAL_JSONL = os.path.join("data", "test_questions.jsonl")
-OUT_DIR = "outputs"
+OUT_DIR = os.path.join("outputs", "raw")
 OUT_CSV = os.path.join(OUT_DIR, "eval_results.csv")
 OUT_SUMMARY = os.path.join(OUT_DIR, "eval_summary.txt")
 

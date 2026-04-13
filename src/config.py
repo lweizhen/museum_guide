@@ -143,7 +143,7 @@ def get_api_key() -> str:
 # TTS
 # ======================
 VOICE = _get("tts.voice", "VOICE", "zh-CN-XiaoxiaoNeural")
-OUTPUT_DIR = _get("tts.output_dir", "OUTPUT_DIR", "outputs")
+OUTPUT_DIR = _get("tts.output_dir", "OUTPUT_DIR", "outputs/media")
 
 # ======================
 # Ollama（本地）配置

@@ -17,7 +17,7 @@ from src.progress import iter_progress
 
 
 DATASET_PATH = Path("data/multimodal_eval/test_images.jsonl")
-OUT_DIR = Path("outputs")
+OUT_DIR = Path("outputs/raw")
 OUT_CSV = OUT_DIR / "eval_scheme_a_cross_image_results.csv"
 OUT_SUMMARY = OUT_DIR / "eval_scheme_a_cross_image_summary.txt"
 OUT_BREAKDOWN = OUT_DIR / "eval_scheme_a_cross_image_breakdown.json"

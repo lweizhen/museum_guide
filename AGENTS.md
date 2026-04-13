@@ -91,8 +91,8 @@ python eval_rag.py
 
 Expected artifacts:
 
-- `outputs/eval_results.csv`
-- `outputs/eval_summary.txt`
+- `outputs/raw/eval_results.csv`
+- `outputs/raw/eval_summary.txt`
 
 ### Run Scheme A multimodal evaluation
 
@@ -109,8 +109,8 @@ python eval_scheme_a.py --with-llm
 
 Expected artifacts:
 
-- `outputs/eval_scheme_a_results.csv`
-- `outputs/eval_scheme_a_summary.txt`
+- `outputs/raw/eval_scheme_a_results.csv`
+- `outputs/raw/eval_scheme_a_summary.txt`
 
 ### Run Scheme A multimodal QA evaluation
 
@@ -128,8 +128,9 @@ python eval_scheme_a_qa.py --with-llm
 
 Expected artifacts:
 
-- `outputs/eval_scheme_a_qa_results.csv`
-- `outputs/eval_scheme_a_qa_summary.txt`
+- `outputs/raw/eval_scheme_a_qa_results.csv`
+- `outputs/raw/eval_scheme_a_qa_summary.txt`
+- `outputs/raw/eval_scheme_a_qa_breakdown.json`
 
 ### Run Scheme A caption-generation evaluation
 
@@ -146,9 +147,9 @@ python eval_scheme_a_caption.py --with-llm
 
 Expected artifacts:
 
-- `outputs/eval_scheme_a_caption_results.csv`
-- `outputs/eval_scheme_a_caption_summary.txt`
-- `outputs/eval_scheme_a_caption_breakdown.json`
+- `outputs/raw/eval_scheme_a_caption_results.csv`
+- `outputs/raw/eval_scheme_a_caption_summary.txt`
+- `outputs/raw/eval_scheme_a_caption_breakdown.json`
 
 ### Run Scheme A cross-image retrieval evaluation
 
@@ -164,9 +165,9 @@ python eval_scheme_a_cross_image.py --limit-artifacts 20
 
 Expected artifacts:
 
-- `outputs/eval_scheme_a_cross_image_results.csv`
-- `outputs/eval_scheme_a_cross_image_summary.txt`
-- `outputs/eval_scheme_a_cross_image_breakdown.json`
+- `outputs/raw/eval_scheme_a_cross_image_results.csv`
+- `outputs/raw/eval_scheme_a_cross_image_summary.txt`
+- `outputs/raw/eval_scheme_a_cross_image_breakdown.json`
 
 ### Run Scheme B multimodal QA evaluation
 
@@ -185,9 +186,9 @@ python eval_scheme_b.py --mode grounded --limit-images 2 --limit-questions 1 --d
 
 Expected artifacts:
 
-- `outputs/eval_scheme_b_results.csv`
-- `outputs/eval_scheme_b_summary.txt`
-- `outputs/eval_scheme_b_breakdown.json`
+- `outputs/raw/eval_scheme_b_results.csv`
+- `outputs/raw/eval_scheme_b_summary.txt`
+- `outputs/raw/eval_scheme_b_breakdown.json`
 
 ### Run Scheme B semantic judge as a separate post-processing step
 
@@ -198,21 +199,45 @@ Recommended for slow multimodal full runs:
 
 ```bash
 python eval_scheme_b.py --mode both --stop-on-error
-python judge_scheme_b_results.py --input outputs/eval_scheme_b_results.csv
+python judge_scheme_b_results.py --input outputs/raw/eval_scheme_b_results.csv
 ```
 
 Optional:
 
 ```bash
 python judge_scheme_b_results.py --mode grounded --limit 200
-python judge_scheme_b_results.py --input outputs/eval_scheme_b_results.csv --output outputs/eval_scheme_b_judged_results.csv --overwrite
+python judge_scheme_b_results.py --input outputs/raw/eval_scheme_b_results.csv --output outputs/judged/eval_scheme_b_judged_results.csv --overwrite
 ```
 
 Expected artifacts:
 
-- `outputs/eval_scheme_b_judged_results.csv`
-- `outputs/eval_scheme_b_judged_summary.txt`
-- `outputs/eval_scheme_b_judged_breakdown.json`
+- `outputs/judged/eval_scheme_b_judged_results.csv`
+- `outputs/judged/eval_scheme_b_judged_summary.txt`
+- `outputs/judged/eval_scheme_b_judged_breakdown.json`
+
+### Run text-generation metrics for evaluated answers
+
+Use this after Scheme A/Scheme B answer generation, especially after Scheme B
+answers have been judged separately. It computes ROUGE-L, BLEU-1/2/4, and
+semantic similarity against the reference answer/description.
+
+```bash
+python eval_metrics.py --input outputs/judged/eval_scheme_b_judged_results.csv --group-cols mode
+```
+
+Optional:
+
+```bash
+python eval_metrics.py --input outputs/raw/eval_scheme_a_qa_results.csv
+python eval_metrics.py --input outputs/judged/eval_scheme_b_judged_results.csv --mode grounded
+python eval_metrics.py --input outputs/judged/eval_scheme_b_judged_results.csv --skip-embedding
+```
+
+Expected artifacts:
+
+- `outputs/metrics/eval_scheme_b_judged_results_metrics.csv`
+- `outputs/metrics/eval_scheme_b_judged_results_metrics_summary.txt`
+- `outputs/metrics/eval_scheme_b_judged_results_metrics_breakdown.json`
 
 ### Build unified multimodal evaluation dataset
 
@@ -244,7 +269,7 @@ There is currently **no enforced linter/formatter config** in repo (no `pyprojec
 When making changes, use these safe local checks if tools are available:
 
 ```bash
-python -m compileall src app.py run_cli.py build_index.py build_image_index.py eval_rag.py eval_scheme_a.py eval_scheme_a_caption.py eval_scheme_a_cross_image.py eval_scheme_a_qa.py eval_scheme_b.py judge_scheme_b_results.py prepare_combined_kb.py prepare_multimodal_eval_dataset.py
+python -m compileall src app.py run_cli.py build_index.py build_image_index.py eval_rag.py eval_scheme_a.py eval_scheme_a_caption.py eval_scheme_a_cross_image.py eval_scheme_a_qa.py eval_scheme_b.py judge_scheme_b_results.py eval_metrics.py prepare_combined_kb.py prepare_multimodal_eval_dataset.py
 ```
 
 Optional (only if installed in your environment):
@@ -329,7 +354,7 @@ python -m pytest -k retriever -q
 - Embedding / retrieval: `EMBED_MODEL_NAME`, `DATA_PATH`, `INDEX_PATH`, `TOP_K`, `THRESHOLD`, `MARGIN`
 - Default text KB path should point to `data/exhibits_combined.txt`, generated by `prepare_combined_kb.py`.
 - Image retrieval: `IMAGE_CSV_PATH`, `IMAGE_CACHE_DIR`, `IMAGE_INDEX_PATH`, `IMAGE_META_PATH`, `IMAGE_MODEL_NAME`, `IMAGE_TOP_K`, `IMAGE_MIN_SCORE`, `IMAGE_MIN_GAP`, `IMAGE_MAX_IMAGES_PER_ITEM`
-- TTS: `VOICE`, `OUTPUT_DIR`
+- TTS: `VOICE`, `OUTPUT_DIR` (default: `outputs/media`)
 
 Agent behavior requirements:
 
@@ -379,7 +404,7 @@ Follow existing style in `src/` and top-level scripts.
 
 - Use UTF-8 for reading/writing text files.
 - Create directories with `exist_ok=True` before file writes.
-- Keep output artifact paths consistent (`outputs/`, `index/`).
+- Keep output artifact paths consistent (`outputs/raw`, `outputs/judged`, `outputs/metrics`, `outputs/media`, `index/`).
 
 ### LLM/RAG-specific conventions
 

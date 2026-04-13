@@ -16,7 +16,7 @@ from src.progress import iter_progress
 from src.retriever import retrieve
 
 
-OUT_DIR = "outputs"
+OUT_DIR = os.path.join("outputs", "raw")
 OUT_CSV = os.path.join(OUT_DIR, "eval_scheme_a_results.csv")
 OUT_SUMMARY = os.path.join(OUT_DIR, "eval_scheme_a_summary.txt")
 _TEXT_DOCS: list[str] | None = None
