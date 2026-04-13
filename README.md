@@ -136,6 +136,70 @@ python prepare_combined_kb.py
 ```bash
 python build_index.py
 ```
+
+## AutoDL SSH restart checklist
+
+Use this checklist every time you reconnect to the rented AutoDL GPU instance.
+Do not paste API keys into README, screenshots, or chat logs; set them only as
+terminal environment variables.
+
+```bash
+cd /root/autodl-tmp/museum_guide
+source .venv/bin/activate
+
+# Optional but recommended on AutoDL when accessing GitHub / HuggingFace.
+source /etc/network_turbo
+
+# Reuse HuggingFace and Ollama caches on the data disk.
+export HF_HOME=/root/autodl-tmp/hf_home
+export HF_ENDPOINT=https://hf-mirror.com
+export OLLAMA_MODELS=/root/autodl-tmp/ollama_models
+
+# Set DashScope judge key for this shell only. Do not commit it to config.yaml.
+export DASHSCOPE_API_KEY="your_dashscope_api_key"
+
+# Start Ollama if it is not already running.
+ollama serve > ollama.log 2>&1 &
+sleep 3
+
+# Sanity checks.
+ollama list
+nvidia-smi
+```
+
+If the HuggingFace cache was downloaded to `/root/autodl-tmp/hf_cache`, but the
+project cannot find it, recreate the expected `HF_HOME/hub` layout:
+
+```bash
+mkdir -p /root/autodl-tmp/hf_home
+ln -sfn /root/autodl-tmp/hf_cache /root/autodl-tmp/hf_home/hub
+export HF_HOME=/root/autodl-tmp/hf_home
+```
+
+After reconnecting, run a small Scheme B smoke test before launching a full job:
+
+```bash
+python eval_scheme_b.py --mode grounded --limit-images 3 --limit-questions 1 --stop-on-error
+python eval_scheme_b.py --mode grounded --limit-images 3 --limit-questions 1 --judge-llm --stop-on-error
+```
+
+For long full runs, use `tmux` so the job survives SSH disconnects:
+
+```bash
+tmux new -s evalb
+cd /root/autodl-tmp/museum_guide
+source .venv/bin/activate
+export HF_HOME=/root/autodl-tmp/hf_home
+export OLLAMA_MODELS=/root/autodl-tmp/ollama_models
+export DASHSCOPE_API_KEY="your_dashscope_api_key"
+python eval_scheme_b.py --mode grounded --judge-llm --stop-on-error
+```
+
+Detach from tmux with `Ctrl+B`, then `D`. Reattach later:
+
+```bash
+tmux attach -t evalb
+```
 3. 构建图片索引：
 
 ```bash
