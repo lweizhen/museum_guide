@@ -364,6 +364,31 @@ Default `judge.provider: "same"` reuses the normal text LLM. For more credible
 thesis evaluation, set `judge.provider` to `dashscope`, `ollama`, or `openai`
 and choose a judge model different from the generation model.
 
+Recommended full-run workflow:
+
+```bash
+# 1. Generate Scheme B answers first. This keeps the multimodal model resident.
+python eval_scheme_b.py --mode both --stop-on-error
+
+# 2. Score the saved answers later with the configured judge model.
+python judge_scheme_b_results.py --input outputs/eval_scheme_b_results.csv
+```
+
+Useful judge-only options:
+
+```bash
+python judge_scheme_b_results.py --mode grounded --limit 200
+python judge_scheme_b_results.py --input outputs/eval_scheme_b_results.csv --output outputs/eval_scheme_b_judged_results.csv --overwrite
+```
+
+Judge-only outputs:
+
+```text
+outputs/eval_scheme_b_judged_results.csv
+outputs/eval_scheme_b_judged_summary.txt
+outputs/eval_scheme_b_judged_breakdown.json
+```
+
 ## 提示词文件为什么有多套模板
 
 `src/prompt.py` 里保留多套模板，是因为项目现在不止一种问答链路：
@@ -410,7 +435,7 @@ test：完全不参与训练，用于最终报告
 ## 常用验证命令
 
 ```bash
-python -m compileall src app.py run_cli.py build_index.py eval_rag.py eval_scheme_b.py eval_scheme_a_cross_image.py prepare_combined_kb.py
+python -m compileall src app.py run_cli.py build_index.py eval_rag.py eval_scheme_b.py judge_scheme_b_results.py eval_scheme_a_cross_image.py prepare_combined_kb.py
 python prepare_combined_kb.py
 python eval_scheme_b.py --mode grounded --limit-images 2 --limit-questions 1 --dry-run
 ```

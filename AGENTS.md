@@ -189,6 +189,31 @@ Expected artifacts:
 - `outputs/eval_scheme_b_summary.txt`
 - `outputs/eval_scheme_b_breakdown.json`
 
+### Run Scheme B semantic judge as a separate post-processing step
+
+Recommended for slow multimodal full runs:
+
+1. First generate Scheme B answers without `--judge-llm`.
+2. Then run the judge script on the saved CSV.
+
+```bash
+python eval_scheme_b.py --mode both --stop-on-error
+python judge_scheme_b_results.py --input outputs/eval_scheme_b_results.csv
+```
+
+Optional:
+
+```bash
+python judge_scheme_b_results.py --mode grounded --limit 200
+python judge_scheme_b_results.py --input outputs/eval_scheme_b_results.csv --output outputs/eval_scheme_b_judged_results.csv --overwrite
+```
+
+Expected artifacts:
+
+- `outputs/eval_scheme_b_judged_results.csv`
+- `outputs/eval_scheme_b_judged_summary.txt`
+- `outputs/eval_scheme_b_judged_breakdown.json`
+
 ### Build unified multimodal evaluation dataset
 
 ```bash
@@ -219,7 +244,7 @@ There is currently **no enforced linter/formatter config** in repo (no `pyprojec
 When making changes, use these safe local checks if tools are available:
 
 ```bash
-python -m compileall src app.py run_cli.py build_index.py build_image_index.py eval_rag.py eval_scheme_a.py eval_scheme_a_caption.py eval_scheme_a_cross_image.py eval_scheme_a_qa.py eval_scheme_b.py prepare_combined_kb.py prepare_multimodal_eval_dataset.py
+python -m compileall src app.py run_cli.py build_index.py build_image_index.py eval_rag.py eval_scheme_a.py eval_scheme_a_caption.py eval_scheme_a_cross_image.py eval_scheme_a_qa.py eval_scheme_b.py judge_scheme_b_results.py prepare_combined_kb.py prepare_multimodal_eval_dataset.py
 ```
 
 Optional (only if installed in your environment):
