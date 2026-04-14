@@ -1,249 +1,169 @@
-# Museum Guide
+# Museum Guide：基于多模态大模型的语音导览助手
 
-面向博物馆文物讲解场景的本地优先 RAG / 多模态问答项目。当前项目包含一个稳定的文本 RAG 基线、一个基于图像检索的多模态方案 A，以及一个真正把图片传给多模态大模型的方案 B 实验分支。
+本项目面向博物馆导览场景，构建一个可以“看图识文物、按问题讲解、必要时语音播报”的智能导览助手。系统当前包含文本 RAG 问答、图片检索式多模态问答、端到端多模态大模型问答、离线评测和指标分析等模块。
 
-项目当前更适合的定位是：用可解释的方案 A 做主展示，用方案 B 做对照实验，最后在论文中比较两者的准确率、稳定性、延迟和可解释性。
+项目目前保留两条多模态路线，便于毕业设计中做对比实验：
 
-## 当前功能
+- **方案 A：图像检索 + 文本 RAG**，先用 CLIP/FAISS 识别图片对应文物，再检索文本知识库并让 LLM 生成回答。
+- **方案 B：多模态大模型问答**，直接把图片和问题交给多模态模型，也支持加入检索上下文的 grounded 模式。
 
-| 功能 | 状态 | 入口 |
+## 功能概览
+
+| 功能 | 说明 | 主要入口 |
 | --- | --- | --- |
-| 文本问答 RAG | 已实现 | `run_cli.py`、`app.py`、`eval_rag.py` |
-| 文物图像检索 | 已实现 | `build_image_index.py`、`src/image_retriever.py` |
-| 方案 A：图片识别 + 文本 RAG | 已实现 | `app.py`、`eval_scheme_a_qa.py` |
-| 方案 A：图片标题/讲解生成评测 | 已实现 | `eval_scheme_a_caption.py` |
-| 方案 A：同文物不同图片泛化评测 | 已实现 | `eval_scheme_a_cross_image.py` |
-| 方案 B：端到端多模态问答 | 已实现实验入口 | `app.py`、`eval_scheme_b.py` |
-| 统一多模态评测集生成 | 已实现 | `prepare_multimodal_eval_dataset.py` |
-| 统一知识库合并 | 已实现 | `prepare_combined_kb.py` |
-| TTS 语音输出 | 已实现 | `src/tts.py` |
+| 文本 RAG 问答 | 根据用户文本问题检索知识库并生成讲解 | `run_cli.py`、`app.py`、`eval_rag.py` |
+| 方案 A 图片问答 | 图片检索识别文物，再结合文本 RAG 回答 | `build_image_index.py`、`eval_scheme_a_qa.py` |
+| 方案 A 图片描述评测 | 根据图片识别结果生成文物描述并评估 | `eval_scheme_a_caption.py` |
+| 方案 A 跨图检索评测 | 测试同一文物不同图片的识别泛化能力 | `eval_scheme_a_cross_image.py` |
+| 方案 B 多模态问答 | 调用本地/远程多模态模型回答图片问题 | `eval_scheme_b.py`、`src/llm.py` |
+| 大模型裁判 | 对已生成答案做语义评分，避免边生成边评分太慢 | `judge_scheme_b_results.py` |
+| 文本指标评测 | 计算 ROUGE-L、BLEU、语义相似度等指标 | `eval_metrics.py` |
+| 数据集构建 | 生成统一多模态训练/验证/测试集 | `prepare_multimodal_eval_dataset.py` |
+| 语音播报 | 将讲解文本转成语音文件 | `src/tts.py` |
 
-## 两个方案
+## 两套多模态方案
 
-### 方案 A：检索增强式多模态问答
+### 方案 A：图像检索 + 文本 RAG
 
 流程：
 
 ```text
-上传图片 -> CLIP 图像向量检索 -> 识别候选文物 -> 构造文本查询 -> FAISS 文本检索 -> LLM 生成讲解
+上传图片 -> 图像向量编码 -> FAISS 图片检索 -> 候选文物 -> 文本知识库检索 -> LLM 生成回答
 ```
 
-优点是可解释、可控、容易定位错误。如果答案错了，通常可以拆成三类看：图像识别错、文本知识库没召回、LLM 生成偏了。这个方案是当前推荐的主演示路径。
+优点是可解释性强、事实约束更稳定，适合博物馆导览这类重视准确性的场景。缺点是如果第一步图片检索识别错了，后续回答也会跟着偏。
 
 ### 方案 B：多模态大模型问答
 
-直接模式：
+直接回答模式：
 
 ```text
-上传图片 + 问题 -> 多模态 LLM -> 答案
+上传图片 + 用户问题 -> 多模态 LLM -> 回答
 ```
 
-知识库增强模式：
+检索增强模式：
 
 ```text
-上传图片 -> 图像检索候选文物 -> 文本检索上下文 -> 图片 + 问题 + 上下文 -> 多模态 LLM -> 答案
+上传图片 -> 检索候选文物和文本上下文 -> 图片 + 问题 + 上下文 -> 多模态 LLM -> 回答
 ```
 
-方案 B 更自然，但本地 4GB 显存机器上速度和稳定性受限，也更容易幻觉。它现在适合作为毕业设计中的对照实验，而不是完全替代方案 A。
+方案 B 的交互更自然，但更依赖多模态模型本身能力，也更慢。当前更推荐把它作为实验对比路线，而不是替代方案 A。
 
 ## 项目结构
 
 ```text
-.
-├─ app.py                              # Streamlit 图形界面，支持文本 RAG、方案 A、方案 B
-├─ run_cli.py                          # 命令行文本问答
-├─ build_index.py                      # 构建文本 FAISS 索引
-├─ build_image_index.py                # 构建图片 FAISS 索引
-├─ prepare_combined_kb.py              # 合并小型人工知识库和 MuseumsChina 知识库
-├─ prepare_multimodal_eval_dataset.py  # 构建统一多模态评测集
-├─ eval_rag.py                         # 文本 RAG 评测
-├─ eval_scheme_a.py                    # 方案 A 图片索引自测
-├─ eval_scheme_a_qa.py                 # 方案 A 图片问答评测
-├─ eval_scheme_a_caption.py            # 方案 A 图片讲解生成评测
-├─ eval_scheme_a_cross_image.py        # 方案 A 同文物不同图片泛化评测
-├─ eval_scheme_b.py                    # 方案 B 多模态问答评测
-├─ src/
-│  ├─ config.py                        # 配置读取
-│  ├─ embedder.py                      # 文本向量
-│  ├─ retriever.py                     # 文本检索
-│  ├─ image_embedder.py                # 图像向量
-│  ├─ image_index.py                   # 图片数据与索引辅助
-│  ├─ image_retriever.py               # 图片检索
-│  ├─ prompt.py                        # 文本/多模态提示词模板
-│  ├─ llm.py                           # OpenAI/DashScope/Ollama/多模态调用
-│  ├─ tts.py                           # 语音合成
-│  └─ eval_utils.py                    # 评测公共工具
-├─ data/
-│  ├─ exhibits.txt                     # 早期人工整理核心文物知识库
-│  ├─ exhibits_museumschina.txt        # 博物中国爬取知识库
-│  ├─ exhibits_combined.txt            # 默认统一知识库，由 prepare_combined_kb.py 生成
-│  ├─ test_questions.jsonl             # 文本 RAG 测试集
-│  └─ multimodal_eval/                 # 多模态 train/val/test 数据集
-├─ index/                              # 文本和图片索引
-└─ outputs/                            # 评测结果输出
+museum_guide/
+  app.py                         # Streamlit 可视化应用
+  run_cli.py                     # 命令行问答入口
+  build_index.py                 # 构建文本向量索引
+  build_image_index.py           # 构建图片向量索引
+  prepare_combined_kb.py         # 合并文本知识库
+  prepare_multimodal_eval_dataset.py
+                                 # 构建多模态评测/训练数据集
+  eval_rag.py                    # 文本 RAG 评测
+  eval_scheme_a.py               # 方案 A 图片检索评测
+  eval_scheme_a_qa.py            # 方案 A 图片问答评测
+  eval_scheme_a_caption.py       # 方案 A 图片描述评测
+  eval_scheme_a_cross_image.py   # 方案 A 跨图片识别评测
+  eval_scheme_b.py               # 方案 B 多模态问答评测
+  judge_scheme_b_results.py      # 对方案 B 结果做独立裁判评分
+  eval_metrics.py                # 计算 ROUGE/BLEU/语义相似度
+  src/                           # 核心源码
+  data/                          # 知识库、测试问题、数据集
+  index/                         # FAISS 索引和图片元数据
+  outputs/                       # 运行结果输出目录
+```
+
+`outputs/` 已经按用途整理：
+
+```text
+outputs/
+  raw/       # 原始评测结果
+  judged/    # 大模型裁判后的结果
+  metrics/   # ROUGE、BLEU、语义相似度等指标
+  smoke/     # 小样本冒烟测试结果
+  media/     # TTS 语音输出
+  archive/   # 旧版中期/开题等提取文本归档
 ```
 
 ## 环境安装
 
-建议在项目根目录执行：
+在项目根目录执行：
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-如果使用 Ollama 本地模型，需要先安装 Ollama 并下载对应模型，例如：
+如果使用 Ollama 本地模型，需要先安装 Ollama，并拉取模型。例如：
 
 ```bash
-ollama pull qwen2.5vl:3b
+ollama pull qwen2.5vl:7b
 ```
 
-你的 3050 4GB 显存更适合把本地多模态模型作为实验对照。正式跑大批量方案 B 评测或 LoRA 微调时，更建议租用 16GB 以上显存的云 GPU。
+如果只跑文本 RAG 或方案 A 的检索流程，可以不租 GPU。若要跑方案 B 的全量多模态评测，建议使用 4090 或同级 GPU。
 
-## 配置
+## 配置说明
 
-项目配置优先级：
+本地配置文件为 `config.yaml`，示例文件为 `config.yaml.example`。`config.yaml` 可能包含 API Key，因此不要提交到 GitHub。
+
+配置读取优先级：
 
 ```text
-config.yaml -> 环境变量 -> src/config.py 默认值
+config.yaml -> 环境变量 -> 代码默认值
 ```
 
 常用配置项：
 
-| 配置 | 说明 |
+| 配置项 | 说明 |
 | --- | --- |
-| `llm_provider` | `openai`、`dashscope` 或 `ollama` |
-| `openai.model` | OpenAI 兼容模型名 |
-| `dashscope.model` | DashScope / Qwen 模型名 |
-| `ollama.model` | Ollama 本地模型名 |
-| `data_path` | 文本知识库路径，当前默认 `data/exhibits_combined.txt` |
+| `llm_provider` | 文本 LLM 提供方，可选 `ollama`、`dashscope`、`openai` |
+| `ollama.model` | Ollama 使用的模型，例如 `qwen2.5vl:7b` |
+| `dashscope.model` | DashScope 文本模型 |
+| `judge.*` | 大模型裁判相关配置 |
+| `data_path` | 文本知识库路径，通常是 `data/exhibits_combined.txt` |
 | `index_path` | 文本向量索引路径 |
-| `image_index.index_path` | 图片向量索引路径 |
-| `image_index.min_score` | 图片识别最低相似度阈值 |
-| `image_index.min_gap` | 图片识别 top1/top2 最小差距阈值 |
+| `image_*` | 图片索引、图片缓存和 CLIP 模型配置 |
+| `output_dir` | TTS 音频输出目录，默认 `outputs/media` |
 
-不要把真实 API Key 提交到公开仓库。建议本地使用 `config.yaml`，共享代码时使用 `config.yaml.example`。
+推荐把敏感 Key 放到环境变量里。
 
-## 首次运行
+Windows PowerShell：
 
-1. 合并知识库：
+```powershell
+$env:DASHSCOPE_API_KEY="your_dashscope_api_key"
+```
+
+Linux / AutoDL：
+
+```bash
+export DASHSCOPE_API_KEY="your_dashscope_api_key"
+```
+
+## 本地运行流程
+
+首次运行或更新知识库后，先构建知识库和索引：
 
 ```bash
 python prepare_combined_kb.py
-```
-
-2. 构建文本索引：
-
-```bash
 python build_index.py
-```
-
-## AutoDL SSH restart checklist
-
-Use this checklist every time you reconnect to the rented AutoDL GPU instance.
-Do not paste API keys into README, screenshots, or chat logs; set them only as
-terminal environment variables.
-
-```bash
-cd /root/autodl-tmp/museum_guide
-source .venv/bin/activate
-
-# Optional but recommended on AutoDL when accessing GitHub / HuggingFace.
-source /etc/network_turbo
-
-# Reuse HuggingFace and Ollama caches on the data disk.
-export HF_HOME=/root/autodl-tmp/hf_home
-export HF_ENDPOINT=https://hf-mirror.com
-export OLLAMA_MODELS=/root/autodl-tmp/ollama_models
-
-# Set DashScope judge key for this shell only. Do not commit it to config.yaml.
-export DASHSCOPE_API_KEY="your_dashscope_api_key"
-
-# Start Ollama if it is not already running.
-ollama serve > ollama.log 2>&1 &
-sleep 3
-
-# Sanity checks.
-ollama list
-nvidia-smi
-```
-
-If the HuggingFace cache was downloaded to `/root/autodl-tmp/hf_cache`, but the
-project cannot find it, recreate the expected `HF_HOME/hub` layout:
-
-```bash
-mkdir -p /root/autodl-tmp/hf_home
-ln -sfn /root/autodl-tmp/hf_cache /root/autodl-tmp/hf_home/hub
-export HF_HOME=/root/autodl-tmp/hf_home
-```
-
-After reconnecting, run a small Scheme B smoke test before launching a full job:
-
-```bash
-python eval_scheme_b.py --mode grounded --limit-images 3 --limit-questions 1 --stop-on-error
-python eval_scheme_b.py --mode grounded --limit-images 3 --limit-questions 1 --judge-llm --stop-on-error
-```
-
-For long full runs, use `tmux` so the job survives SSH disconnects:
-
-```bash
-tmux new -s evalb
-cd /root/autodl-tmp/museum_guide
-source .venv/bin/activate
-export HF_HOME=/root/autodl-tmp/hf_home
-export OLLAMA_MODELS=/root/autodl-tmp/ollama_models
-export DASHSCOPE_API_KEY="your_dashscope_api_key"
-python eval_scheme_b.py --mode grounded --judge-llm --stop-on-error
-```
-
-Detach from tmux with `Ctrl+B`, then `D`. Reattach later:
-
-```bash
-tmux attach -t evalb
-```
-3. 构建图片索引：
-
-```bash
 python build_image_index.py
 ```
 
-4. 启动 Streamlit：
+启动 Streamlit 应用：
 
 ```bash
 streamlit run app.py
 ```
 
-## 命令行问答
+启动命令行问答：
 
 ```bash
 python run_cli.py
 ```
 
-## Streamlit 使用方式
+## 评测流程
 
-`app.py` 里可以选择不同问答模式：
-
-| 模式 | 用途 |
-| --- | --- |
-| 文本 RAG | 只输入文字问题，从文本知识库检索后回答 |
-| 方案 A | 上传文物图片，先识别文物，再结合问题进行文本 RAG 回答 |
-| 方案 B 直接模式 | 上传图片和问题，直接交给多模态模型回答 |
-| 方案 B 知识库增强模式 | 先用图片检索获取文物候选和文本上下文，再让多模态模型回答 |
-
-方案 A 和方案 B 的切换主要发生在 `app.py` 的界面分支中。`src/` 里的模块更多是公共能力：检索、提示词、LLM 调用、图片向量等，不强行绑定某一个方案。
-
-## 测试集与评测
-
-### 文本 RAG 测试集
-
-文件：
-
-```text
-data/test_questions.jsonl
-```
-
-用于 `eval_rag.py`，测试文本检索和回答是否命中文物、是否拒答、是否基于知识库。
-
-运行：
+### 文本 RAG 评测
 
 ```bash
 python eval_rag.py
@@ -256,132 +176,62 @@ outputs/raw/eval_results.csv
 outputs/raw/eval_summary.txt
 ```
 
-### 多模态统一评测集
+### 方案 A 评测
 
-生成：
-
-```bash
-python prepare_multimodal_eval_dataset.py
-```
-
-输出：
-
-```text
-data/multimodal_eval/artifacts.jsonl
-data/multimodal_eval/train.jsonl
-data/multimodal_eval/val.jsonl
-data/multimodal_eval/test.jsonl
-data/multimodal_eval/train_images.jsonl
-data/multimodal_eval/val_images.jsonl
-data/multimodal_eval/test_images.jsonl
-data/multimodal_eval/summary.json
-```
-
-这个数据集按文物划分 train/val/test，避免同一文物同时出现在训练集和测试集中。图片级文件适合视觉问答和图像检索评测，文物级文件适合描述生成或后续微调数据构造。
-
-### 方案 A 图片索引自测
+图片问答评测：
 
 ```bash
-python eval_scheme_a.py
+python eval_scheme_a_qa.py --with-llm
 ```
 
-这更像“图片索引是否能找回自己”的自检，不是严格独立测试。
-
-### 方案 A 图片问答评测
-
-```bash
-python eval_scheme_a_qa.py
-```
-
-常用小规模调试：
-
-```bash
-python eval_scheme_a_qa.py --limit-images 20 --limit-questions 3
-```
-
-### 方案 A 同文物不同图片泛化评测
-
-```bash
-python eval_scheme_a_cross_image.py
-```
-
-这个脚本会用每个文物的一张图作为临时图库，再用同一文物的其他图片检索它，适合观察“换一张图还认不认得出来”。
-
-### 方案 A 图片讲解生成评测
-
-```bash
-python eval_scheme_a_caption.py
-```
-
-可选调用 LLM：
+图片描述评测：
 
 ```bash
 python eval_scheme_a_caption.py --with-llm
 ```
 
-### 方案 B 多模态问答评测
-
-直接模式：
+跨图片检索评测：
 
 ```bash
-python eval_scheme_b.py --mode direct --limit-images 5 --limit-questions 2
+python eval_scheme_a_cross_image.py
 ```
 
-知识库增强模式：
+小样本测试可以加限制参数：
 
 ```bash
-python eval_scheme_b.py --mode grounded --limit-images 5 --limit-questions 2
+python eval_scheme_a_qa.py --limit-images 20 --limit-questions 3 --with-llm
 ```
 
-两种模式对比：
+### 方案 B 评测
+
+先跑小样本确认模型和配置没有问题：
 
 ```bash
-python eval_scheme_b.py --mode both --limit-images 5 --limit-questions 2 --max-calls 10
+python eval_scheme_b.py --mode grounded --limit-images 3 --limit-questions 1 --stop-on-error
 ```
 
-只检查数据读取和方案 B grounded 检索链路，不调用多模态模型：
+跑 direct 和 grounded 两种模式：
 
 ```bash
-python eval_scheme_b.py --mode grounded --limit-images 2 --limit-questions 1 --dry-run
-```
-
-输出：
-
-```text
-outputs/raw/eval_scheme_b_results.csv
-outputs/raw/eval_scheme_b_summary.txt
-outputs/raw/eval_scheme_b_breakdown.json
-```
-
-Scheme B semantic judge mode:
-
-```bash
-python eval_scheme_b.py --mode grounded --limit-images 3 --limit-questions 1 --judge-llm
-```
-
-`--judge-llm` uses the separate `judge.*` settings in `config.yaml`.
-Default `judge.provider: "same"` reuses the normal text LLM. For more credible
-thesis evaluation, set `judge.provider` to `dashscope`, `ollama`, or `openai`
-and choose a judge model different from the generation model.
-
-Recommended full-run workflow:
-
-```bash
-# 1. Generate Scheme B answers first. This keeps the multimodal model resident.
 python eval_scheme_b.py --mode both --stop-on-error
+```
 
-# 2. Score the saved answers later with the configured judge model.
+如果全量太慢，可以只跑一部分：
+
+```bash
+python eval_scheme_b.py --mode both --limit-images 200 --stop-on-error
+```
+
+### 分开运行大模型裁判
+
+方案 B 全量生成很慢，不建议边生成边裁判。推荐先生成答案，再单独评分：
+
+```bash
+python eval_scheme_b.py --mode both --stop-on-error
 python judge_scheme_b_results.py --input outputs/raw/eval_scheme_b_results.csv
 ```
 
-Useful judge-only options:
-
-```bash
-python judge_scheme_b_results.py --mode grounded --limit 200
-python judge_scheme_b_results.py --input outputs/raw/eval_scheme_b_results.csv --output outputs/judged/eval_scheme_b_judged_results.csv --overwrite
-```
-
-Judge-only outputs:
+输出：
 
 ```text
 outputs/judged/eval_scheme_b_judged_results.csv
@@ -389,59 +239,214 @@ outputs/judged/eval_scheme_b_judged_summary.txt
 outputs/judged/eval_scheme_b_judged_breakdown.json
 ```
 
-## 提示词文件为什么有多套模板
+### 计算 ROUGE / BLEU / 语义相似度
 
-`src/prompt.py` 里保留多套模板，是因为项目现在不止一种问答链路：
+方案 B：
 
-| 模板 | 用途 |
-| --- | --- |
-| `build_prompt` | 文本 RAG 与方案 A 最终回答 |
-| `build_multimodal_direct_prompt` | 方案 B 直接图片问答 |
-| `build_multimodal_grounded_prompt` | 方案 B 图片 + 知识库增强回答 |
+```bash
+python eval_metrics.py --input outputs/judged/eval_scheme_b_judged_results.csv --group-cols mode
+```
 
-这样做的好处是实验边界清楚：方案 A 追求可控和可解释，方案 B 追求端到端多模态能力，两者可以公平对比。
+方案 A：
 
-## 当前推荐实验路线
+```bash
+python eval_metrics.py --input outputs/raw/eval_scheme_a_qa_results.csv
+```
 
-1. 先保证 `prepare_combined_kb.py`、`build_index.py`、`build_image_index.py` 都能正常运行。
-2. 用 `eval_rag.py` 稳定文本 RAG 基线。
-3. 用 `eval_scheme_a_cross_image.py` 和 `eval_scheme_a_qa.py` 评估方案 A。
-4. 用 `eval_scheme_b.py --mode both` 小规模评估方案 B。
-5. 论文中重点比较方案 A 和方案 B 的准确率、拒答能力、可解释性和延迟。
-
-## LoRA 微调建议
-
-如果后续微调，当前更建议先微调“讲解问答风格”，不要急着微调文物图片识别。原因是每个文物只有少量图片，视觉微调很容易过拟合；而问答风格数据可以从知识库构造更多样本，收益更稳定。
-
-推荐数据划分：
+输出位于：
 
 ```text
-train：讲解风格、问答风格、拒答风格样本
-val：调参数和早停
-test：完全不参与训练，用于最终报告
+outputs/metrics/
 ```
 
-评分可以结合规则指标和大模型裁判：规则指标负责可复现，大模型裁判负责语义覆盖和讲解质量。
+## 指标说明
 
-## 后续评测升级记录
+当前评测指标分为三类：
 
-当前 QA 自动评分主要依赖字符串匹配、包含关系和 token 覆盖率，适合名称、时代、材质、馆藏单位等封闭事实题，但不适合评价中文长段讲解。后续建议把讲解生成质量评测升级为“传统指标 + 图文相关性 + 大模型裁判”的组合：
+| 指标 | 作用 |
+| --- | --- |
+| 检索指标 | 判断是否找到了正确文物，例如 Top-1 命中率、Top-K 命中率 |
+| 规则指标 | 判断答案是否提到正确文物、是否拒答合理、是否使用检索证据 |
+| 生成质量指标 | 判断生成文本和参考答案的相似度，例如 ROUGE-L、BLEU、语义相似度 |
 
-- 传统文本指标：保留 ROUGE-L、Coverage，可选 BLEU、METEOR、CIDEr、SPICE 作为论文对照，但不把它们作为唯一结论。
-- 图文相关性指标：保留 CLIPScore，用来判断生成描述和图片是否视觉相关。
-- 语义裁判指标：引入 LLM-as-Judge，对 GT 描述、知识库证据和模型生成内容进行评分，维度建议包括 factuality、groundedness、completeness、fluency、hallucination、overall。
-- 可靠性建议：裁判模型尽量不要和生成模型完全相同，并抽样人工复核一部分案例，避免裁判偏差。
+其中 BLEU 和 ROUGE 更偏文本重合，中文开放式讲解里分数可能偏低；语义相似度和大模型裁判更适合评价“意思是否对”。毕业论文中建议同时报告传统指标和语义指标，不只依赖某一个分数。
 
-## 常用验证命令
+## 远程 GPU 服务器运行步骤
+
+以下步骤适用于 AutoDL 这类远程 GPU 服务器。命令中的 `ssh`、`scp`、`tmux`、`nohup` 是 Linux/服务器工具名，需要保留英文原样。
+
+### 1. 登录远程服务器
+
+把 `<端口>` 和 `<服务器地址>` 替换成 AutoDL 页面给你的信息：
 
 ```bash
-python -m compileall src app.py run_cli.py build_index.py eval_rag.py eval_scheme_b.py judge_scheme_b_results.py eval_scheme_a_cross_image.py prepare_combined_kb.py
+ssh -p <端口> root@<服务器地址>
+```
+
+例如格式类似：
+
+```bash
+ssh -p 21870 root@connect.xxx.seetacloud.com
+```
+
+### 2. 进入项目目录
+
+```bash
+cd /root/autodl-tmp/museum_guide
+```
+
+如果项目还没拉取：
+
+```bash
+cd /root/autodl-tmp
+git clone https://github.com/lweizhen/museum_guide.git
+cd museum_guide
+```
+
+### 3. 激活虚拟环境
+
+```bash
+source .venv/bin/activate
+```
+
+如果提示 `.venv` 不存在，就重新创建：
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+只要 `.venv` 还在数据盘里，之后重新 SSH 登录一般不需要重新安装依赖，只需要再次 `source .venv/bin/activate`。
+
+### 4. 设置网络和缓存目录
+
+```bash
+source /etc/network_turbo
+export HF_HOME=/root/autodl-tmp/hf_home
+export HF_ENDPOINT=https://hf-mirror.com
+export OLLAMA_MODELS=/root/autodl-tmp/ollama_models
+```
+
+如果要使用 DashScope 裁判模型：
+
+```bash
+export DASHSCOPE_API_KEY="your_dashscope_api_key"
+```
+
+### 5. 启动 Ollama
+
+```bash
+ollama serve > ollama.log 2>&1 &
+sleep 3
+ollama list
+```
+
+如果模型不存在，拉取模型：
+
+```bash
+ollama pull qwen2.5vl:7b
+```
+
+确认 GPU 是否被使用：
+
+```bash
+nvidia-smi
+ollama ps
+```
+
+### 6. 跑小样本测试
+
+```bash
 python prepare_combined_kb.py
-python eval_scheme_b.py --mode grounded --limit-images 2 --limit-questions 1 --dry-run
+python build_index.py
+python build_image_index.py
+python eval_scheme_b.py --mode grounded --limit-images 3 --limit-questions 1 --stop-on-error
 ```
 
-如果改了知识库内容或 `data_path`，需要重新运行：
+### 7. 跑全量评测
+
+如果安装了 `tmux`：
 
 ```bash
-python build_index.py
+tmux new -s evalb
+python eval_scheme_b.py --mode both --stop-on-error
 ```
+
+退出但不中断任务：
+
+```text
+先按 Ctrl+B，再按 D
+```
+
+重新进入：
+
+```bash
+tmux attach -t evalb
+```
+
+如果没有 `tmux`，可以用 `nohup`：
+
+```bash
+nohup python eval_scheme_b.py --mode both --stop-on-error > evalb.log 2>&1 &
+tail -f evalb.log
+```
+
+### 8. 全量生成后单独跑裁判
+
+```bash
+python judge_scheme_b_results.py --input outputs/raw/eval_scheme_b_results.csv
+```
+
+再计算文本指标：
+
+```bash
+python eval_metrics.py --input outputs/judged/eval_scheme_b_judged_results.csv --group-cols mode
+```
+
+### 9. 把远程输出目录拉回本地
+
+在本地电脑的 PowerShell 或终端执行下面命令，不是在远程服务器里执行：
+
+```bash
+scp -P <端口> -r root@<服务器地址>:/root/autodl-tmp/museum_guide/outputs .\
+```
+
+如果你的 SSH 命令是：
+
+```bash
+ssh -p 21870 root@connect.cqa1.seetacloud.com
+```
+
+那么拉取命令就是：
+
+```bash
+scp -P 21870 -r root@connect.cqa1.seetacloud.com:/root/autodl-tmp/museum_guide/outputs .\
+```
+
+## 当前实验经验
+
+目前的实验经验大致是：
+
+- 方案 A 更稳定、可解释，适合作为主系统和展示路线。
+- 方案 B 的直接回答模式容易只看图泛泛回答，命中率和事实稳定性不如检索增强模式。
+- 方案 B 的检索增强模式效果更好，但速度明显更慢，适合作为对比实验。
+- 大模型裁判最好和答案生成分开跑，否则全量评测会非常慢。
+- 传统指标可以保留，但中文讲解任务更应该结合语义相似度和人工样例分析。
+
+## 后续计划
+
+建议后续优先做这些工作：
+
+1. 继续清洗和扩展文本知识库，提高两个方案的事实基础。
+2. 为方案 A 增加更多同一文物的不同图片，测试跨图片识别泛化。
+3. 对方案 B 的直接回答模式和检索增强模式做代表性成功、失败案例分析。
+4. 引入 CLIPScore 或更强的图文相关性指标，用于图片描述类任务。
+5. 如果要微调，优先微调讲解问答风格，不建议只用少量文物图片微调识别能力。
+
+## 注意事项
+
+- 不要提交 `config.yaml` 中的 API Key。
+- 不要提交大型缓存、模型文件、音频输出和临时评测结果。
+- 修改输出路径时，需要同步更新 README、`AGENTS.md` 和相关脚本默认参数。
+- 如果正在跑长时间评测，不要同时运行其他重 GPU/CPU 任务，避免干扰结果。
