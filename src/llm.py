@@ -24,9 +24,11 @@ from .config import (
     LLM_PROVIDER,
     OLLAMA_BASE_URL,
     OLLAMA_MODEL,
+    OLLAMA_MULTIMODAL_MODEL,
     OLLAMA_TEMPERATURE,
     OLLAMA_TIMEOUT_SECONDS,
     OUTPUT_DIR,
+    QWEN_MULTIMODAL_MODEL,
     QWEN_MODEL,
     TEMPERATURE,
     get_api_key,
@@ -61,10 +63,10 @@ def _extract_multimodal_text(content: object) -> str:
     return str(content).strip()
 
 
-def _call_dashscope_messages(messages: list[dict]) -> str:
+def _call_dashscope_messages(messages: list[dict], model: str = QWEN_MULTIMODAL_MODEL) -> str:
     dashscope.api_key = get_api_key()
     resp = MultiModalConversation.call(
-        model=QWEN_MODEL,
+        model=model,
         messages=messages,
         temperature=TEMPERATURE,
         result_format="message",
@@ -83,7 +85,8 @@ def _call_dashscope(prompt: str) -> str:
             [
                 {"role": "system", "content": [{"text": "你是一名专业的博物馆讲解员。"}]},
                 {"role": "user", "content": [{"text": prompt}]},
-            ]
+            ],
+            model=QWEN_MODEL,
         )
 
     dashscope.api_key = get_api_key()
@@ -100,6 +103,7 @@ def _call_dashscope(prompt: str) -> str:
 
 def _post_ollama(payload: dict, timeout_seconds: int = OLLAMA_TIMEOUT_SECONDS) -> str:
     url = f"{OLLAMA_BASE_URL.rstrip('/')}/api/generate"
+    requested_model = str(payload.get("model") or OLLAMA_MODEL)
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
         url=url,
@@ -129,7 +133,7 @@ def _post_ollama(payload: dict, timeout_seconds: int = OLLAMA_TIMEOUT_SECONDS) -
         raise RuntimeError(
             f"Ollama 调用失败（{url}），请确认：\n"
             f"1) Ollama 已启动\n"
-            f"2) 已 pull 模型：ollama pull {OLLAMA_MODEL}\n"
+            f"2) 已 pull 模型：ollama pull {requested_model}\n"
             f"3) 端口和地址配置正确\n"
             f"原始错误：{e}"
         ) from e
@@ -258,7 +262,7 @@ def _call_dashscope_multimodal(prompt: str, image: Image.Image) -> str:
 
 def _call_ollama_multimodal(prompt: str, image: Image.Image) -> str:
     payload = {
-        "model": OLLAMA_MODEL,
+        "model": OLLAMA_MULTIMODAL_MODEL,
         "prompt": prompt,
         "images": [_encode_image_to_base64(image)],
         "stream": False,
@@ -321,15 +325,15 @@ def call_multimodal_llm(prompt: str, image: Image.Image) -> str:
     provider = (LLM_PROVIDER or "").strip().lower()
 
     if provider == "dashscope":
-        if not _is_multimodal_model(QWEN_MODEL):
+        if not _is_multimodal_model(QWEN_MULTIMODAL_MODEL):
             raise RuntimeError(
                 "当前 DashScope 模型不是多模态模型。请把 config.yaml 中 "
-                "dashscope.model 切换为支持图片输入的模型后再试。"
+                "dashscope.multimodal_model 切换为支持图片输入的模型后再试。"
             )
         return _call_dashscope_multimodal(prompt, image)
 
     if provider == "ollama":
-        if not _is_ollama_multimodal_model(OLLAMA_MODEL):
+        if not _is_ollama_multimodal_model(OLLAMA_MULTIMODAL_MODEL):
             raise RuntimeError(
                 "当前 Ollama 模型看起来不是多模态模型。请切换为 llava、"
                 "qwen2.5vl、minicpm-v 等支持图片输入的模型后再试。"

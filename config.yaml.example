@@ -13,11 +13,13 @@ llm_provider: "ollama"
 dashscope:
   api_key: "YOUR_DASHSCOPE_API_KEY"
   model: "qwen3.5-plus"
+  multimodal_model: "qwen-vl-plus"
   temperature: 0.3
 
 ollama:
   base_url: "http://localhost:11434"
-  model: "qwen2.5vl:3b"
+  model: "qwen2.5:7b"
+  multimodal_model: "qwen2.5vl:7b"
   temperature: 0.3
   timeout_seconds: 600
 

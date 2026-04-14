@@ -347,8 +347,10 @@ python -m pytest -k retriever -q
 
 - `LLM_PROVIDER` / `llm_provider`: `openai`, `dashscope`, or `ollama`
 - OpenAI-compatible: `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_TEMPERATURE` (yaml: `openai.*`)
-- DashScope: `DASHSCOPE_API_KEY`, `QWEN_MODEL`, `TEMPERATURE` (yaml: `dashscope.*`)
-- Ollama: `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_TEMPERATURE` (yaml: `ollama.*`)
+- DashScope text generation: `DASHSCOPE_API_KEY`, `QWEN_MODEL`, `TEMPERATURE` (yaml: `dashscope.*`)
+- DashScope multimodal generation: `QWEN_MULTIMODAL_MODEL` (yaml: `dashscope.multimodal_model`)
+- Ollama text generation: `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_TEMPERATURE` (yaml: `ollama.*`)
+- Ollama multimodal generation: `OLLAMA_MULTIMODAL_MODEL` (yaml: `ollama.multimodal_model`)
 - Ollama timeout: `OLLAMA_TIMEOUT_SECONDS` (yaml: `ollama.timeout_seconds`)
 - Judge LLM: `JUDGE_PROVIDER`, `JUDGE_MODEL`, `JUDGE_BASE_URL`, `JUDGE_API_KEY`, `JUDGE_TEMPERATURE`, `JUDGE_TIMEOUT_SECONDS` (yaml: `judge.*`)
 - Embedding / retrieval: `EMBED_MODEL_NAME`, `DATA_PATH`, `INDEX_PATH`, `TOP_K`, `THRESHOLD`, `MARGIN`

@@ -122,6 +122,11 @@ LLM_PROVIDER = _get("llm_provider", "LLM_PROVIDER", "dashscope").lower()
 # DashScope（API）配置
 # ======================
 QWEN_MODEL = _get("dashscope.model", "QWEN_MODEL", "qwen3.5-plus")
+QWEN_MULTIMODAL_MODEL = _get(
+    "dashscope.multimodal_model",
+    "QWEN_MULTIMODAL_MODEL",
+    QWEN_MODEL,
+)
 TEMPERATURE = float(_get("dashscope.temperature", "TEMPERATURE", "0.3"))
 
 
@@ -150,6 +155,11 @@ OUTPUT_DIR = _get("tts.output_dir", "OUTPUT_DIR", "outputs/media")
 # ======================
 OLLAMA_BASE_URL = _get("ollama.base_url", "OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = _get("ollama.model", "OLLAMA_MODEL", "qwen2.5:3b")
+OLLAMA_MULTIMODAL_MODEL = _get(
+    "ollama.multimodal_model",
+    "OLLAMA_MULTIMODAL_MODEL",
+    OLLAMA_MODEL,
+)
 OLLAMA_TEMPERATURE = float(_get("ollama.temperature", "OLLAMA_TEMPERATURE", str(TEMPERATURE)))
 OLLAMA_TIMEOUT_SECONDS = int(
     _get("ollama.timeout_seconds", "OLLAMA_TIMEOUT_SECONDS", "600")

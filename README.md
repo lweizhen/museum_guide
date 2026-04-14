@@ -97,6 +97,7 @@ python -m pip install -r requirements.txt
 如果使用 Ollama 本地模型，需要先安装 Ollama，并拉取模型。例如：
 
 ```bash
+ollama pull qwen2.5:7b
 ollama pull qwen2.5vl:7b
 ```
 
@@ -117,8 +118,10 @@ config.yaml -> 环境变量 -> 代码默认值
 | 配置项 | 说明 |
 | --- | --- |
 | `llm_provider` | 文本 LLM 提供方，可选 `ollama`、`dashscope`、`openai` |
-| `ollama.model` | Ollama 使用的模型，例如 `qwen2.5vl:7b` |
+| `ollama.model` | Ollama 文本生成模型，方案 A 会用它生成回答，例如 `qwen2.5:7b` |
+| `ollama.multimodal_model` | Ollama 多模态模型，方案 B 会用它看图问答，例如 `qwen2.5vl:7b` |
 | `dashscope.model` | DashScope 文本模型 |
+| `dashscope.multimodal_model` | DashScope 多模态模型 |
 | `judge.*` | 大模型裁判相关配置 |
 | `data_path` | 文本知识库路径，通常是 `data/exhibits_combined.txt` |
 | `index_path` | 文本向量索引路径 |
