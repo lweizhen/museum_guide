@@ -55,6 +55,16 @@ GUIDE_COLUMNS = GUIDE_SCORE_COLUMNS + (
     "guide_reason",
     "guide_error",
 )
+GUIDE_JSON_KEYS = {
+    "guide_factuality": "factuality",
+    "guide_groundedness": "groundedness",
+    "guide_style": "guide_style",
+    "guide_clarity": "clarity",
+    "guide_completeness": "completeness",
+    "guide_fluency": "fluency",
+    "guide_engagement": "engagement",
+    "guide_overall": "overall",
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -317,7 +327,7 @@ def _judge_row(
 
     result: dict[str, str] = {}
     for key in GUIDE_SCORE_COLUMNS:
-        json_key = key.replace("guide_", "")
+        json_key = GUIDE_JSON_KEYS[key]
         result[key] = _normalize_score(obj.get(json_key))
 
     result["guide_pass"] = _normalize_bool(obj.get("pass", False))
