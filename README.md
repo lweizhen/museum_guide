@@ -17,6 +17,7 @@
 | 方案 A 跨图检索评测 | 测试同一文物不同图片的识别泛化能力 | `eval_scheme_a_cross_image.py` |
 | 方案 B 多模态问答 | 调用本地/远程多模态模型回答图片问题 | `eval_scheme_b.py`、`src/llm.py` |
 | 大模型裁判 | 对已生成答案做语义评分，避免边生成边评分太慢 | `judge_scheme_b_results.py` |
+| 导览讲解质量裁判 | 评估生成内容是否像合格导览员讲解，包含事实性、讲解风格、流畅度、吸引力等维度 | `judge_guide_quality.py` |
 | 文本指标评测 | 计算 ROUGE-L、BLEU、语义相似度等指标 | `eval_metrics.py` |
 | 数据集构建 | 生成统一多模态训练/验证/测试集 | `prepare_multimodal_eval_dataset.py` |
 | 语音播报 | 将讲解文本转成语音文件 | `src/tts.py` |
@@ -67,6 +68,7 @@ museum_guide/
   eval_scheme_a_cross_image.py   # 方案 A 跨图片识别评测
   eval_scheme_b.py               # 方案 B 多模态问答评测
   judge_scheme_b_results.py      # 对方案 B 结果做独立裁判评分
+  judge_guide_quality.py         # 对生成讲解做导览员风格与质量评分
   eval_metrics.py                # 计算 ROUGE/BLEU/语义相似度
   src/                           # 核心源码
   data/                          # 知识库、测试问题、数据集
@@ -240,6 +242,36 @@ python judge_scheme_b_results.py --input outputs/raw/eval_scheme_b_results.csv
 outputs/judged/eval_scheme_b_judged_results.csv
 outputs/judged/eval_scheme_b_judged_summary.txt
 outputs/judged/eval_scheme_b_judged_breakdown.json
+```
+
+### 导览讲解质量裁判
+
+这个脚本用于回答“生成内容像不像导览员讲解”。它不是替代事实正确性评测，而是补充评价讲解质量：事实性、证据约束、导览员风格、清晰度、完整度、中文流畅度、吸引力和综合分。
+
+方案 A：
+
+```bash
+python judge_guide_quality.py --input outputs/raw/eval_scheme_a_qa_results.csv
+```
+
+方案 B：
+
+```bash
+python judge_guide_quality.py --input outputs/judged/eval_scheme_b_judged_results.csv --group-cols mode
+```
+
+先检查会评多少条，不调用模型：
+
+```bash
+python judge_guide_quality.py --input outputs/raw/eval_scheme_a_qa_results.csv --dry-run
+```
+
+输出默认位于：
+
+```text
+outputs/judged/<输入文件名>_guide_quality.csv
+outputs/judged/<输入文件名>_guide_quality_summary.txt
+outputs/judged/<输入文件名>_guide_quality_breakdown.json
 ```
 
 ### 计算 ROUGE / BLEU / 语义相似度

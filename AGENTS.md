@@ -215,6 +215,31 @@ Expected artifacts:
 - `outputs/judged/eval_scheme_b_judged_summary.txt`
 - `outputs/judged/eval_scheme_b_judged_breakdown.json`
 
+### Run guide-style quality judge as a separate post-processing step
+
+Use this after Scheme A or Scheme B answer generation to evaluate whether the
+generated text sounds like a qualified museum guide explanation. It scores
+factuality, groundedness, guide style, clarity, completeness, fluency,
+engagement, and overall quality.
+
+```bash
+python judge_guide_quality.py --input outputs/raw/eval_scheme_a_qa_results.csv
+python judge_guide_quality.py --input outputs/judged/eval_scheme_b_judged_results.csv --group-cols mode
+```
+
+Optional:
+
+```bash
+python judge_guide_quality.py --input outputs/raw/eval_scheme_a_qa_results.csv --dry-run
+python judge_guide_quality.py --input outputs/judged/eval_scheme_b_judged_results.csv --limit 200 --overwrite
+```
+
+Expected artifacts:
+
+- `outputs/judged/<input_stem>_guide_quality.csv`
+- `outputs/judged/<input_stem>_guide_quality_summary.txt`
+- `outputs/judged/<input_stem>_guide_quality_breakdown.json`
+
 ### Run text-generation metrics for evaluated answers
 
 Use this after Scheme A/Scheme B answer generation, especially after Scheme B
@@ -269,7 +294,7 @@ There is currently **no enforced linter/formatter config** in repo (no `pyprojec
 When making changes, use these safe local checks if tools are available:
 
 ```bash
-python -m compileall src app.py run_cli.py build_index.py build_image_index.py eval_rag.py eval_scheme_a.py eval_scheme_a_caption.py eval_scheme_a_cross_image.py eval_scheme_a_qa.py eval_scheme_b.py judge_scheme_b_results.py eval_metrics.py prepare_combined_kb.py prepare_multimodal_eval_dataset.py
+python -m compileall src app.py run_cli.py build_index.py build_image_index.py eval_rag.py eval_scheme_a.py eval_scheme_a_caption.py eval_scheme_a_cross_image.py eval_scheme_a_qa.py eval_scheme_b.py judge_scheme_b_results.py judge_guide_quality.py eval_metrics.py prepare_combined_kb.py prepare_multimodal_eval_dataset.py
 ```
 
 Optional (only if installed in your environment):
