@@ -101,8 +101,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     rows = read_jsonl(args.test_file, limit=args.limit)
-    processor_path = args.adapter_path or args.model_path
-    processor = AutoProcessor.from_pretrained(processor_path, trust_remote_code=True)
+    processor = AutoProcessor.from_pretrained(args.model_path, trust_remote_code=True)
     model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
         args.model_path,
         torch_dtype=torch.bfloat16 if args.bf16 else torch.float16,
@@ -110,7 +109,13 @@ def main() -> None:
         trust_remote_code=True,
     )
     if args.adapter_path:
-        model = PeftModel.from_pretrained(model, args.adapter_path)
+        adapter_path = Path(args.adapter_path)
+        if not adapter_path.exists():
+            raise FileNotFoundError(
+                f"LoRA adapter path not found: {adapter_path}. "
+                "Check whether training finished and --adapter-path is correct."
+            )
+        model = PeftModel.from_pretrained(model, str(adapter_path))
     model.eval()
 
     out_path = Path(args.output)
