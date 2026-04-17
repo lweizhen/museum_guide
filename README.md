@@ -463,3 +463,97 @@ scp -P <port> root@<host>:/root/autodl-tmp/museum_guide/outputs/raw/eval_scheme_
 - `app.py`、`run_cli.py`、`src/` 接口未改动
 
 也就是说，旧命令不会因为这次目录整理而失效。
+
+## Unified Five-Chain Evaluation
+
+The main horizontal experiment uses `data/multimodal_eval/test_images.jsonl` and the Hugging Face version of `Qwen2.5-VL-3B-Instruct`.
+
+Supported chains:
+
+- `retrieval_rag_text`: image retrieval + text RAG + Qwen2.5-VL text generation
+- `vl_direct`: Qwen2.5-VL direct image QA
+- `vl_rag`: Qwen2.5-VL + RAG
+- `vl_lora`: Qwen2.5-VL + LoRA
+- `vl_rag_lora`: Qwen2.5-VL + RAG + LoRA
+
+Smoke test:
+
+```bash
+python scripts/eval/eval_multimodal_chains.py \
+  --chains vl_direct,vl_rag \
+  --model-path /root/autodl-tmp/models/Qwen2.5-VL-3B-Instruct \
+  --limit-images 2 \
+  --limit-questions 1
+```
+
+LoRA smoke test:
+
+```bash
+python scripts/eval/eval_multimodal_chains.py \
+  --chains vl_lora,vl_rag_lora \
+  --model-path /root/autodl-tmp/models/Qwen2.5-VL-3B-Instruct \
+  --adapter-path outputs/lora/qwen25vl3b_museum \
+  --limit-images 2 \
+  --limit-questions 1
+```
+
+Long runs should be split by chain and use `--resume`:
+
+```bash
+python scripts/eval/eval_multimodal_chains.py \
+  --chains vl_rag_lora \
+  --model-path /root/autodl-tmp/models/Qwen2.5-VL-3B-Instruct \
+  --adapter-path outputs/lora/qwen25vl3b_museum \
+  --resume
+```
+
+Multi-GPU sharding example, one process writes one output file. Do not let multiple processes write the same CSV:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python scripts/eval/eval_multimodal_chains.py \
+  --chains vl_direct \
+  --model-path /root/autodl-tmp/models/Qwen2.5-VL-3B-Instruct \
+  --num-shards 2 \
+  --shard-index 0 \
+  --output outputs/raw/eval_multimodal_chains_vl_direct_s0.csv \
+  --summary outputs/raw/eval_multimodal_chains_vl_direct_s0_summary.txt
+
+CUDA_VISIBLE_DEVICES=1 python scripts/eval/eval_multimodal_chains.py \
+  --chains vl_direct \
+  --model-path /root/autodl-tmp/models/Qwen2.5-VL-3B-Instruct \
+  --num-shards 2 \
+  --shard-index 1 \
+  --output outputs/raw/eval_multimodal_chains_vl_direct_s1.csv \
+  --summary outputs/raw/eval_multimodal_chains_vl_direct_s1_summary.txt
+```
+
+Merge shard files before metrics if you used multiple GPUs:
+
+```bash
+python scripts/eval/merge_eval_csv.py \
+  "outputs/raw/eval_multimodal_chains_*_s*.csv" \
+  --output outputs/raw/eval_multimodal_chains_results.csv
+```
+
+Post-evaluation metrics for unified output:
+
+```bash
+python scripts/eval/eval_metrics.py \
+  --input outputs/raw/eval_multimodal_chains_results.csv \
+  --prediction-col prediction \
+  --reference-col gold_answer \
+  --group-cols chain
+
+python scripts/judge/judge_guide_quality.py \
+  --input outputs/raw/eval_multimodal_chains_results.csv \
+  --answer-col prediction \
+  --reference-col gold_answer \
+  --group-cols chain
+```
+
+Default output:
+
+- `outputs/raw/eval_multimodal_chains_results.csv`
+- `outputs/raw/eval_multimodal_chains_summary.txt`
+
+Detailed plan: `docs/evaluation_five_chains_plan.md`.

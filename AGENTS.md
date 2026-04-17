@@ -258,3 +258,29 @@ python scripts/eval/eval_scheme_b.py --mode grounded --limit-images 2 --limit-qu
 3. 关键输出路径是否未被改坏
 4. 是否引入新的硬编码路径或密钥
 5. 是否做了最小可执行验证
+
+## 10. Unified Five-Chain Evaluation Maintenance
+
+Main horizontal experiments should use `scripts/eval/eval_multimodal_chains.py` instead of extending the legacy `eval_scheme_a_qa.py` or `eval_scheme_b.py` scripts.
+
+Fixed chain names:
+
+- `retrieval_rag_text`
+- `vl_direct`
+- `vl_rag`
+- `vl_lora`
+- `vl_rag_lora`
+
+Required conventions:
+
+- Main dataset: `data/multimodal_eval/test_images.jsonl`
+- Main VLM: Hugging Face `Qwen2.5-VL-3B-Instruct`
+- Output: `outputs/raw/eval_multimodal_chains_results.csv`
+- Grouping column: `chain`
+- The evaluator must support `--chains`, `--resume`, `--num-shards`, and `--shard-index`
+- LoRA chains must require `--adapter-path`
+- Parallel jobs must write separate CSV files; never share one output CSV between processes
+- Use `scripts/eval/merge_eval_csv.py` to merge multi-GPU shard outputs
+- Unified metric scripts should group by `chain`
+
+Detailed plan: `docs/evaluation_five_chains_plan.md`.

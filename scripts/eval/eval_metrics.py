@@ -24,6 +24,7 @@ from src.progress import Progress
 METRICS_DIR = Path("outputs/metrics")
 DEFAULT_INPUT = "outputs/judged/eval_scheme_b_judged_results.csv"
 PREDICTION_COLUMNS = (
+    "prediction",
     "llm_answer",
     "generated_description",
     "answer",

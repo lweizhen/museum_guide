@@ -2,20 +2,31 @@ from __future__ import annotations
 
 import re
 
+LB = "\u3010"
+RB = "\u3011"
+NAME_LABEL = "\u5c55\u54c1\u540d\u79f0"
+ERA_LABEL = "\u6240\u5c5e\u65f6\u4ee3"
+DATA_LABEL = "\u5c55\u54c1\u8d44\u6599"
+QUESTION_LABEL = "\u89c2\u4f17\u95ee\u9898"
+SOURCE_PREFIX = "\u8d44\u6599\u6765\u6e90\uff1a"
+CN_COMMA = "\u3001"
+CN_LP = "\uff08"
+CN_RP = "\uff09"
+
 
 def clip(text: str, n: int = 450) -> str:
-    return text if len(text) <= n else text[:n] + "…"
+    return text if len(text) <= n else text[:n] + "..."
 
 
 def extract_meta(block_text: str) -> tuple[str | None, str | None]:
     name = None
     era = None
 
-    name_match = re.search(r"【展品名称】\s*([^\s【】]+)", block_text)
+    name_match = re.search(rf"{LB}{NAME_LABEL}{RB}\s*([^\s{LB}{RB}]+)", block_text)
     if name_match:
         name = name_match.group(1).strip()
 
-    era_match = re.search(r"【所属时代】\s*([^\s【】]+)", block_text)
+    era_match = re.search(rf"{LB}{ERA_LABEL}{RB}\s*([^\s{LB}{RB}]+)", block_text)
     if era_match:
         era = era_match.group(1).strip()
 
@@ -28,7 +39,7 @@ def _normalize_question(question: str, default_question: str) -> str:
 
 
 def _append_contexts(prefix: str, contexts: list[tuple[str, float]]) -> str:
-    prompt = prefix + "\n【展品资料】\n"
+    prompt = prefix + f"\n{LB}{DATA_LABEL}{RB}\n"
     for text, _score in contexts:
         prompt += f"- {clip(text)}\n"
     return prompt
@@ -37,23 +48,23 @@ def _append_contexts(prefix: str, contexts: list[tuple[str, float]]) -> str:
 def build_prompt(query: str, contexts: list[tuple[str, float]]) -> str:
     prompt = _append_contexts(
         """
-你是一名专业的博物馆讲解员，请根据提供的展品资料回答观众的问题。
+You are a professional museum guide. Answer the visitor's question using only the provided exhibit records.
 
-要求：
-1. 语言自然、口语化，适合现场讲解。
-2. 只能依据给定资料回答，不能编造不存在的信息。
-3. 如果资料不足，请明确说“根据现有资料无法确定”。
-4. 全程只用中文，不要夹杂英文或中英混杂表达。
-5. 控制在150字以内。
+Requirements:
+1. Answer naturally in Chinese, suitable for an on-site audio guide.
+2. Do not invent facts that are not supported by the records.
+3. If the records are insufficient, say in Chinese that the current records are insufficient to determine the answer.
+4. Use Chinese only. Do not mix English into the final answer.
+5. Keep the answer within 150 Chinese characters when possible.
 """.strip(),
         contexts,
     )
     prompt += f"""
 
-【观众问题】
+{LB}{QUESTION_LABEL}{RB}
 {query}
 
-请开始讲解：
+Please answer in Chinese:
 """
     return prompt
 
@@ -61,22 +72,22 @@ def build_prompt(query: str, contexts: list[tuple[str, float]]) -> str:
 def build_multimodal_direct_prompt(question: str) -> str:
     query = _normalize_question(
         question,
-        "请识别图片中的文物，并简要介绍它的名称、时代、类型和主要特点。",
+        "Please identify the artifact in the image and briefly introduce its name, period, type, and key features.",
     )
     return f"""
-你是一名专业的博物馆讲解员。现在你只能根据观众上传的图片和问题作答。
+You are a professional museum guide. You may only use the uploaded image and the visitor's question.
 
-要求：
-1. 先判断图片里能直接观察到的器物类型、材质和外观特征。
-2. 如果无法仅凭图片可靠判断具体文物名称或具体时代，请明确说“仅凭图片无法可靠判断具体名称或时代”，不要猜测。
-3. 不要编造图片中看不到、也没有依据的历史细节。
-4. 全程只用中文，不要夹杂英文。
-5. 先说判断，再说依据，控制在120字以内。
+Requirements:
+1. First judge the visible object type, material, and visual features.
+2. If the exact artifact name or period cannot be reliably identified from the image alone, explicitly say so in Chinese and do not guess.
+3. Do not invent historical details that are not visible or supported.
+4. Use Chinese only.
+5. Give the judgement first, then the basis. Keep the answer within 120 Chinese characters when possible.
 
-【观众问题】
+{LB}{QUESTION_LABEL}{RB}
 {query}
 
-请开始回答：
+Please answer in Chinese:
 """
 
 
@@ -86,28 +97,28 @@ def build_multimodal_grounded_prompt(
 ) -> str:
     query = _normalize_question(
         question,
-        "请识别图片中的文物，并结合资料介绍它的名称、时代、类型和主要特点。",
+        "Please identify the artifact in the image and introduce it using the provided records.",
     )
     prompt = _append_contexts(
         """
-你是一名专业的博物馆讲解员。现在你需要同时参考图片和提供的展品资料作答。
+You are a professional museum guide. You must answer by jointly considering the image and the provided exhibit records.
 
-要求：
-1. 先看图片，再结合资料回答。
-2. 涉及名称、时代、用途、历史背景等事实信息时，优先依据给定资料中已经明确写出的内容，不得编造。
-3. 如果图片内容与资料无法可靠对应，或者你把握不足，请明确说“根据现有图片和资料无法可靠判断”。
-4. 允许概括，但不能把相似器物当成同一件文物。
-5. 全程只用中文，不要夹杂英文。
-6. 控制在150字以内。
+Requirements:
+1. Inspect the image, then use the records as the primary source for factual details.
+2. For names, periods, uses, and historical background, rely on explicit information in the records.
+3. If the image and records cannot be reliably matched, say in Chinese that the current image and records are insufficient for a reliable judgement.
+4. You may summarize, but do not treat similar artifacts as the same artifact.
+5. Use Chinese only.
+6. Keep the answer within 150 Chinese characters when possible.
 """.strip(),
         contexts,
     )
     prompt += f"""
 
-【观众问题】
+{LB}{QUESTION_LABEL}{RB}
 {query}
 
-请开始讲解：
+Please answer in Chinese:
 """
     return prompt
 
@@ -117,7 +128,7 @@ def build_citation(contexts: list[tuple[str, float]]) -> str:
     for text, _score in contexts:
         name, era = extract_meta(text)
         if name:
-            sources.append(f"{name}（{era}）" if era else name)
+            sources.append(f"{name}{CN_LP}{era}{CN_RP}" if era else name)
 
     sources = list(dict.fromkeys(sources))
-    return "资料来源：" + "、".join(sources) if sources else ""
+    return SOURCE_PREFIX + CN_COMMA.join(sources) if sources else ""

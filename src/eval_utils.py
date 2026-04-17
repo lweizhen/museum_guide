@@ -6,6 +6,10 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+LB = "\u3010"
+RB = "\u3011"
+QUESTION_PREFIX = "\u3002\u95ee\u9898\uff1a"
+
 
 def read_jsonl(path: str | Path, limit: int = 0) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
@@ -30,7 +34,7 @@ def strip_model_artifacts(text: str) -> str:
 
 
 def extract_field(doc: str, label: str) -> str:
-    pattern = rf"【{re.escape(label)}】\s*(.*?)(?=【|$)"
+    pattern = rf"{LB}{re.escape(label)}{RB}\s*(.*?)(?={LB}|$)"
     match = re.search(pattern, doc or "", flags=re.S)
     return match.group(1).strip() if match else ""
 
@@ -43,7 +47,7 @@ def build_text_query(name: str, question: str, era: str = "", museum: str = "") 
     ]
     prefix = " ".join(prefix_parts)
     if prefix:
-        return f"{prefix}。问题：{question.strip()}"
+        return f"{prefix}{QUESTION_PREFIX}{question.strip()}"
     return question.strip()
 
 

@@ -23,6 +23,7 @@ DEFAULT_INPUT = Path("outputs/raw/eval_scheme_a_qa_results.csv")
 DEFAULT_OUTPUT_DIR = Path("outputs/judged")
 
 ANSWER_COLUMNS = (
+    "prediction",
     "llm_answer",
     "generated_description",
     "answer",
