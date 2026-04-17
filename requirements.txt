@@ -8,3 +8,8 @@ pyyaml
 requests
 beautifulsoup4
 pillow
+transformers>=4.49.0
+peft
+accelerate
+bitsandbytes
+qwen-vl-utils

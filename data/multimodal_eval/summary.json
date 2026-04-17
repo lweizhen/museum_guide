@@ -1,15 +1,26 @@
 {
+  "dataset_type": "closed_set_lora",
+  "split_policy": "Images are split within each artifact. Single-image artifacts are duplicated into train and test; extra images are assigned to train first.",
   "artifact_count": 377,
   "image_count": 961,
-  "split_counts": {
-    "train": 270,
-    "val": 27,
-    "test": 80
+  "image_assignment_count": 1001,
+  "image_split_counts": {
+    "train": 624,
+    "val": 0,
+    "test": 377
+  },
+  "artifact_split_presence": {
+    "train": 377,
+    "val": 0,
+    "test": 377
   },
   "match_strategy_counts": {
     "name+era+museum": 375,
     "name": 2
   },
+  "min_images_per_artifact": 1,
+  "excluded_too_few_images_count": 0,
+  "excluded_too_few_images_examples": [],
   "unmatched_count": 2,
   "unmatched_examples": [
     {
@@ -26,5 +37,10 @@
       "museum": "-",
       "detail_url": "https://www.museumschina.cn/collection/details?id=afa25fcd894d7486591b9d2f2d5e2a894"
     }
-  ]
+  ],
+  "lora_sample_counts": {
+    "train": 6864,
+    "val": 0,
+    "test": 4147
+  }
 }

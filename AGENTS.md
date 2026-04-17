@@ -1,617 +1,260 @@
 # AGENTS.md
 
-Guidance for autonomous coding agents working in this repository.
-This root file is the operational source of truth for build/test/style expectations.
-Directory-level `AGENTS.md` files may add local details, but should not duplicate
-or override this file unless they state a narrower rule explicitly.
+本文件是仓库级操作说明，供自动化编码代理使用。目录级 `AGENTS.md`
+可以补充更窄范围规则，但不应与本文件冲突。
 
-## 1) Repository Snapshot
+## 1. 仓库概览
 
-- Language: Python 3.x
-- App types: CLI (`run_cli.py`), Streamlit UI (`app.py`), offline eval (`eval_rag.py`)
-- Core architecture: text RAG with FAISS retrieval + LLM generation + TTS output
-- Multimodal status:
-  - Scheme A: image retrieval with CLIP embeddings + artifact candidate linking + text RAG QA
-  - Scheme B: true image-bearing multimodal LLM QA branch for side-by-side comparison
-  - Evaluation scripts now include terminal progress reporting for long full-run jobs
-- Dependencies are managed via `requirements.txt` (no Poetry/Pipenv/Conda lock files here)
-- Local rule hierarchy:
-  - `AGENTS.md`: full-project rules and commands
-  - `src/AGENTS.md`: focused notes for source-package modules only
-- No CI config or task runner (no Makefile, no tox, no pytest config found)
+- 语言：Python 3.x
+- 交互入口：
+  - `app.py`：Streamlit 页面
+  - `run_cli.py`：命令行入口
+- 核心架构：文本 RAG + FAISS + LLM + TTS
+- 多模态分支：
+  - 方案 A：图像检索增强 + 文本 RAG
+  - 方案 B：多模态大模型 direct / grounded 对比
+- 依赖管理：`requirements.txt`
 
-## 2) Rule Files Discovery
+## 2. 当前目录结构
 
-Checked and **not present** in current repo:
+标准脚本入口已经归类到 `scripts/` 下：
 
-- `.cursor/rules/`
-- `.cursorrules`
-- `.github/copilot-instructions.md`
+```text
+scripts/
+  build/
+  eval/
+  judge/
+  data_tools/
+```
 
-If these files are added later, update this AGENTS.md and prioritize explicit repo rules.
+仓库根目录保留了同名兼容包装脚本，因此下列两种命令都应可用：
 
-## 3) Setup and Build Commands
+```bash
+python scripts/eval/eval_scheme_b.py
+python eval_scheme_b.py
+```
 
-Use these commands from repository root.
+优先文档化和维护 `scripts/` 下的标准路径，顶层脚本仅视为兼容层。
 
-### Install
+## 3. 关键命令
+
+所有命令默认在仓库根目录执行。
+
+### 安装依赖
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-### Build combined text knowledge base
+### 构建统一知识库
 
 ```bash
-python prepare_combined_kb.py
+python scripts/build/prepare_combined_kb.py
 ```
 
-Expected artifact:
+输出：
 
 - `data/exhibits_combined.txt`
 
-### Build vector index (required before retrieval flows)
+### 构建文本索引
 
 ```bash
-python build_index.py
+python scripts/build/build_index.py
 ```
 
-Expected artifact:
+输出：
 
 - `index/exhibits.index`
 
-### Build image index (required before image retrieval flows)
+### 构建图片索引
 
 ```bash
-python build_image_index.py
+python scripts/build/build_image_index.py
 ```
 
-Expected artifacts:
+输出：
 
 - `index/exhibits_images.index`
 - `index/exhibits_images_meta.json`
 
-### Run CLI app
+
+### 构建闭集 LoRA / 多模态评测数据集
+
+同一文物的图片在 `train` / `test` 内划分；单图文物会把同一张图同时写入 `train` 和 `test`。该数据集类型在 `summary.json` 中标记为 `closed_set_lora`。
 
 ```bash
-python run_cli.py
+python scripts/build/prepare_multimodal_eval_dataset.py
 ```
 
-### Run Streamlit app
+### Qwen2.5-VL LoRA 微调
+
+标准入口位于 `scripts/finetune/`，顶层保留兼容包装脚本。微调使用 Hugging Face 模型，不使用 Ollama 模型文件。
+
+```bash
+python scripts/finetune/prepare_qwen25vl_lora_data.py
+python scripts/finetune/train_qwen25vl_lora.py --model-path /path/to/Qwen2.5-VL-3B-Instruct
+python scripts/finetune/eval_qwen25vl_lora.py --model-path /path/to/Qwen2.5-VL-3B-Instruct --adapter-path outputs/lora/qwen25vl3b_museum
+```
+### 启动页面
 
 ```bash
 streamlit run app.py
 ```
 
-### Run evaluation pipeline
+### 启动命令行
 
 ```bash
-python eval_rag.py
+python run_cli.py
 ```
 
-Expected artifacts:
-
-- `outputs/raw/eval_results.csv`
-- `outputs/raw/eval_summary.txt`
-
-### Run Scheme A multimodal evaluation
+### 文本 RAG 评测
 
 ```bash
-python eval_scheme_a.py
+python scripts/eval/eval_rag.py
 ```
 
-Optional:
+### 方案 A 图像问答评测
 
 ```bash
-python eval_scheme_a.py --limit 20
-python eval_scheme_a.py --with-llm
+python scripts/eval/eval_scheme_a_qa.py --with-llm
 ```
 
-Expected artifacts:
-
-- `outputs/raw/eval_scheme_a_results.csv`
-- `outputs/raw/eval_scheme_a_summary.txt`
-
-### Run Scheme A multimodal QA evaluation
+### 方案 A 图像描述评测
 
 ```bash
-python eval_scheme_a_qa.py
+python scripts/eval/eval_scheme_a_caption.py --with-llm
 ```
 
-Optional:
+### 方案 A 跨图检索评测
 
 ```bash
-python eval_scheme_a_qa.py --limit-images 20
-python eval_scheme_a_qa.py --limit-images 20 --limit-questions 3
-python eval_scheme_a_qa.py --with-llm
+python scripts/eval/eval_scheme_a_cross_image.py
 ```
 
-Expected artifacts:
-
-- `outputs/raw/eval_scheme_a_qa_results.csv`
-- `outputs/raw/eval_scheme_a_qa_summary.txt`
-- `outputs/raw/eval_scheme_a_qa_breakdown.json`
-
-### Run Scheme A caption-generation evaluation
+### 方案 B 评测
 
 ```bash
-python eval_scheme_a_caption.py
+python scripts/eval/eval_scheme_b.py --mode both --stop-on-error
 ```
 
-Optional:
+### 方案 B 语义裁判
 
 ```bash
-python eval_scheme_a_caption.py --limit-images 20
-python eval_scheme_a_caption.py --with-llm
+python scripts/judge/judge_scheme_b_results.py --input outputs/raw/eval_scheme_b_results.csv
 ```
 
-Expected artifacts:
-
-- `outputs/raw/eval_scheme_a_caption_results.csv`
-- `outputs/raw/eval_scheme_a_caption_summary.txt`
-- `outputs/raw/eval_scheme_a_caption_breakdown.json`
-
-### Run Scheme A cross-image retrieval evaluation
+### 讲解质量裁判
 
 ```bash
-python eval_scheme_a_cross_image.py
+python scripts/judge/judge_guide_quality.py --input outputs/raw/eval_scheme_a_qa_results.csv
+python scripts/judge/judge_guide_quality.py --input outputs/judged/eval_scheme_b_judged_results.csv --group-cols mode
 ```
 
-Optional:
+### 文本生成指标
 
 ```bash
-python eval_scheme_a_cross_image.py --limit-artifacts 20
+python scripts/eval/eval_metrics.py --input outputs/judged/eval_scheme_b_judged_results.csv --group-cols mode
 ```
 
-Expected artifacts:
+## 4. 输出目录约定
 
-- `outputs/raw/eval_scheme_a_cross_image_results.csv`
-- `outputs/raw/eval_scheme_a_cross_image_summary.txt`
-- `outputs/raw/eval_scheme_a_cross_image_breakdown.json`
-
-### Run Scheme B multimodal QA evaluation
-
-```bash
-python eval_scheme_b.py
+```text
+outputs/
+  raw/       # 原始评测结果
+  judged/    # 裁判结果
+  metrics/   # ROUGE / BLEU / 语义相似度等
+  media/     # TTS 音频
+  archive/   # 历史材料
 ```
 
-Optional:
+代理修改代码时不要把新输出写到未约定目录。
 
-```bash
-python eval_scheme_b.py --mode direct --limit-images 5 --limit-questions 2
-python eval_scheme_b.py --mode grounded --limit-images 5 --limit-questions 2
-python eval_scheme_b.py --mode both --limit-images 5 --limit-questions 2 --max-calls 10
-python eval_scheme_b.py --mode grounded --limit-images 2 --limit-questions 1 --dry-run
-```
+## 5. 配置约定
 
-Expected artifacts:
+配置加载优先级：
 
-- `outputs/raw/eval_scheme_b_results.csv`
-- `outputs/raw/eval_scheme_b_summary.txt`
-- `outputs/raw/eval_scheme_b_breakdown.json`
+1. `config.yaml`
+2. 环境变量
+3. `src/config.py` 默认值
 
-### Run Scheme B semantic judge as a separate post-processing step
+常见配置项：
 
-Recommended for slow multimodal full runs:
+- `llm_provider`
+- `ollama.model`
+- `ollama.multimodal_model`
+- `dashscope.model`
+- `dashscope.multimodal_model`
+- `judge.*`
+- `data_path`
+- `index_path`
+- `image_*`
+- `output_dir`
 
-1. First generate Scheme B answers without `--judge-llm`.
-2. Then run the judge script on the saved CSV.
+要求：
 
-```bash
-python eval_scheme_b.py --mode both --stop-on-error
-python judge_scheme_b_results.py --input outputs/raw/eval_scheme_b_results.csv
-```
+- 不要硬编码 API Key
+- 新增配置项时，同时更新：
+  - `config.yaml.example`
+  - `src/config.py`
+  - `README.md`
+  - 本文件
 
-Optional:
+## 6. 代码风格与修改约束
 
-```bash
-python judge_scheme_b_results.py --mode grounded --limit 200
-python judge_scheme_b_results.py --input outputs/raw/eval_scheme_b_results.csv --output outputs/judged/eval_scheme_b_judged_results.csv --overwrite
-```
+- 保持 Python 代码可读性，遵循 PEP 8
+- 新改函数尽量补类型注解
+- `src/` 内部优先使用相对导入
+- 用户可见中文提示保持清晰、直接
+- 不要静默吞异常
+- 方案 A 与方案 B 必须概念分离：
+  - 方案 A 不是端到端多模态大模型
+  - 方案 B 才是图像直接参与的大模型问答
 
-Expected artifacts:
+## 7. 运行与验证
 
-- `outputs/judged/eval_scheme_b_judged_results.csv`
-- `outputs/judged/eval_scheme_b_judged_summary.txt`
-- `outputs/judged/eval_scheme_b_judged_breakdown.json`
+当前仓库没有完整单元测试体系，主要依赖脚本烟雾验证。
 
-### Run guide-style quality judge as a separate post-processing step
-
-Use this after Scheme A or Scheme B answer generation to evaluate whether the
-generated text sounds like a qualified museum guide explanation. It scores
-factuality, groundedness, guide style, clarity, completeness, fluency,
-engagement, and overall quality.
-
-```bash
-python judge_guide_quality.py --input outputs/raw/eval_scheme_a_qa_results.csv
-python judge_guide_quality.py --input outputs/judged/eval_scheme_b_judged_results.csv --group-cols mode
-```
-
-Optional:
-
-```bash
-python judge_guide_quality.py --input outputs/raw/eval_scheme_a_qa_results.csv --dry-run
-python judge_guide_quality.py --input outputs/judged/eval_scheme_b_judged_results.csv --limit 200 --overwrite
-```
-
-Expected artifacts:
-
-- `outputs/judged/<input_stem>_guide_quality.csv`
-- `outputs/judged/<input_stem>_guide_quality_summary.txt`
-- `outputs/judged/<input_stem>_guide_quality_breakdown.json`
-
-### Run text-generation metrics for evaluated answers
-
-Use this after Scheme A/Scheme B answer generation, especially after Scheme B
-answers have been judged separately. It computes ROUGE-L, BLEU-1/2/4, and
-semantic similarity against the reference answer/description.
-
-```bash
-python eval_metrics.py --input outputs/judged/eval_scheme_b_judged_results.csv --group-cols mode
-```
-
-Optional:
-
-```bash
-python eval_metrics.py --input outputs/raw/eval_scheme_a_qa_results.csv
-python eval_metrics.py --input outputs/judged/eval_scheme_b_judged_results.csv --mode grounded
-python eval_metrics.py --input outputs/judged/eval_scheme_b_judged_results.csv --skip-embedding
-```
-
-Expected artifacts:
-
-- `outputs/metrics/eval_scheme_b_judged_results_metrics.csv`
-- `outputs/metrics/eval_scheme_b_judged_results_metrics_summary.txt`
-- `outputs/metrics/eval_scheme_b_judged_results_metrics_breakdown.json`
-
-### Build unified multimodal evaluation dataset
-
-```bash
-python prepare_multimodal_eval_dataset.py
-```
-
-Optional:
-
-```bash
-python prepare_multimodal_eval_dataset.py --limit-artifacts 20
-```
-
-Expected artifacts:
-
-- `data/multimodal_eval/artifacts.jsonl`
-- `data/multimodal_eval/train.jsonl`
-- `data/multimodal_eval/val.jsonl`
-- `data/multimodal_eval/test.jsonl`
-- `data/multimodal_eval/train_images.jsonl`
-- `data/multimodal_eval/val_images.jsonl`
-- `data/multimodal_eval/test_images.jsonl`
-- `data/multimodal_eval/summary.json`
-
-## 4) Lint / Format Commands
-
-There is currently **no enforced linter/formatter config** in repo (no `pyproject.toml`, `setup.cfg`, `.flake8`, etc.).
-
-When making changes, use these safe local checks if tools are available:
+建议最小验证命令：
 
 ```bash
 python -m compileall src app.py run_cli.py build_index.py build_image_index.py eval_rag.py eval_scheme_a.py eval_scheme_a_caption.py eval_scheme_a_cross_image.py eval_scheme_a_qa.py eval_scheme_b.py judge_scheme_b_results.py judge_guide_quality.py eval_metrics.py prepare_combined_kb.py prepare_multimodal_eval_dataset.py
 ```
 
-Optional (only if installed in your environment):
+可选烟雾测试：
 
 ```bash
-python -m ruff check .
-python -m black --check .
+python scripts/build/prepare_combined_kb.py
+python scripts/eval/eval_scheme_b.py --mode grounded --limit-images 2 --limit-questions 1 --dry-run
 ```
 
-If you introduce a formatter/linter config in a PR, document exact commands here.
+## 8. 项目修复优先级
 
-## 5) Test Commands (Including Single-Test Guidance)
+这是当前项目维护的明确优先级，代理在整理工程时应优先服从。
 
-Current state:
+### P0
 
-- No `tests/` directory and no unit test framework config committed yet.
-- Primary validation is smoke execution of scripts.
+1. 清理乱码、编码污染、异常字符串
+2. 对齐 README / 配置 / 实际 provider 支持范围
+3. 提升 judge 输出 JSON 稳定性
 
-### Existing smoke-test commands
+### P1
 
-```bash
-python prepare_combined_kb.py
-python build_index.py
-python build_image_index.py --limit 10
-python eval_rag.py
-python eval_scheme_a.py --limit 10
-python eval_scheme_b.py --mode grounded --limit-images 2 --limit-questions 1 --dry-run
-python run_cli.py
-```
+4. 统一 `outputs` 内各类结果文件命名
+5. 增加最小 smoke test / regression test
+6. 增加性能与资源占用统计
 
-### Single-case evaluation tip (without unit tests)
+### P2
 
-To quickly validate one scenario, temporarily reduce `data/test_questions.jsonl` to one case
-or create a one-line temp file and point eval code to it before running `python eval_rag.py`.
+7. 增加知识库外与低质量图片拒答评测
+8. 增加人工抽样核验自动裁判
+9. 继续拆分大型评测脚本，降低耦合
 
-### If pytest tests are added (recommended pattern)
+## 9. 代理完成任务前检查
 
-Run all tests:
+完成改动前至少检查：
 
-```bash
-python -m pytest -q
-```
-
-Run a single file:
-
-```bash
-python -m pytest tests/test_retriever.py -q
-```
-
-Run a single test function:
-
-```bash
-python -m pytest tests/test_retriever.py::test_dynamic_threshold -q
-```
-
-Run tests matching keyword:
-
-```bash
-python -m pytest -k retriever -q
-```
-
-## 6) Environment and Runtime Conventions
-
-### Configuration loading priority
-
-`src/config.py` reads settings in this order (first non-empty wins):
-
-1. **`config.yaml`** in project root (recommended for local development)
-2. **Environment variables** (for CI / deployment overrides)
-3. **Code defaults** in `config.py`
-
-`config.yaml` requires `pyyaml`; if the package is missing or the file is absent, the system falls back silently to env vars + defaults.
-
-### Key configuration items
-
-- `LLM_PROVIDER` / `llm_provider`: `openai`, `dashscope`, or `ollama`
-- OpenAI-compatible: `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_MODEL`, `OPENAI_TEMPERATURE` (yaml: `openai.*`)
-- DashScope text generation: `DASHSCOPE_API_KEY`, `QWEN_MODEL`, `TEMPERATURE` (yaml: `dashscope.*`)
-- DashScope multimodal generation: `QWEN_MULTIMODAL_MODEL` (yaml: `dashscope.multimodal_model`)
-- Ollama text generation: `OLLAMA_BASE_URL`, `OLLAMA_MODEL`, `OLLAMA_TEMPERATURE` (yaml: `ollama.*`)
-- Ollama multimodal generation: `OLLAMA_MULTIMODAL_MODEL` (yaml: `ollama.multimodal_model`)
-- Ollama timeout: `OLLAMA_TIMEOUT_SECONDS` (yaml: `ollama.timeout_seconds`)
-- Judge LLM: `JUDGE_PROVIDER`, `JUDGE_MODEL`, `JUDGE_BASE_URL`, `JUDGE_API_KEY`, `JUDGE_TEMPERATURE`, `JUDGE_TIMEOUT_SECONDS` (yaml: `judge.*`)
-- Embedding / retrieval: `EMBED_MODEL_NAME`, `DATA_PATH`, `INDEX_PATH`, `TOP_K`, `THRESHOLD`, `MARGIN`
-- Default text KB path should point to `data/exhibits_combined.txt`, generated by `prepare_combined_kb.py`.
-- Image retrieval: `IMAGE_CSV_PATH`, `IMAGE_CACHE_DIR`, `IMAGE_INDEX_PATH`, `IMAGE_META_PATH`, `IMAGE_MODEL_NAME`, `IMAGE_TOP_K`, `IMAGE_MIN_SCORE`, `IMAGE_MIN_GAP`, `IMAGE_MAX_IMAGES_PER_ITEM`
-- TTS: `VOICE`, `OUTPUT_DIR` (default: `outputs/media`)
-
-Agent behavior requirements:
-
-- Never hardcode API keys or secrets.
-- Read config via `src/config.py` helpers (`_get`, `get_api_key`, `get_openai_api_key`).
-- Preserve current default values unless task explicitly changes behavior.
-- When adding new config items, update `config.yaml`, `src/config.py`, and this section.
-
-## 7) Code Style Guidelines
-
-Follow existing style in `src/` and top-level scripts.
-
-### Imports
-
-- Use absolute imports for external packages, relative imports within `src` (e.g., `from .config import ...`).
-- Keep import groups ordered: stdlib, third-party, local.
-- Remove unused imports; do not leave dead aliases.
-
-### Formatting
-
-- Follow PEP 8 and keep lines readable (target ~88-100 chars where practical).
-- Use 4-space indentation, no tabs.
-- Keep functions focused and short when possible.
-- Prefer explicit intermediate variables over dense one-liners in retrieval/LLM logic.
-
-### Types
-
-- Add type hints for new/changed function signatures.
-- Use built-in generics (`list[str]`, `tuple[str, float]`) consistently with existing code.
-- Prefer precise return types over `Any` unless unavoidable.
-
-### Naming
-
-- Functions/variables: `snake_case`.
-- Constants: `UPPER_SNAKE_CASE` in config-style modules.
-- Internal helpers: prefix with `_` (e.g., `_call_ollama`, `_extract_name`).
-- Use meaningful names tied to RAG domain (`contexts`, `retrieved_docs`, `top_k`).
-
-### Error handling
-
-- Raise `RuntimeError`/`FileNotFoundError` with actionable messages when inputs or env are invalid.
-- Keep user-facing failures clear and recovery-oriented (what to check next).
-- Do not swallow exceptions silently.
-- Preserve existing Chinese-language user messages in end-user paths unless asked to refactor language.
-
-### I/O and side effects
-
-- Use UTF-8 for reading/writing text files.
-- Create directories with `exist_ok=True` before file writes.
-- Keep output artifact paths consistent (`outputs/raw`, `outputs/judged`, `outputs/metrics`, `outputs/media`, `index/`).
-
-### LLM/RAG-specific conventions
-
-- Keep retrieval deterministic and transparent (return docs + scores).
-- Keep prompt constraints explicit: grounded answer, refusal when context insufficient.
-- Avoid introducing hallucination-prone prompt wording.
-- Preserve citation behavior where available (`build_citation`).
-
-## 8) Modification Guardrails for Agents
-
-- Do not commit generated binaries or cache artifacts (`__pycache__`, large media outputs) unless task explicitly asks.
-- Do not commit generated eval/index artifacts from `outputs/` or `index/`; these are local runtime artifacts.
-- Avoid breaking public script entrypoints: `build_index.py`, `run_cli.py`, `app.py`, `eval_rag.py`.
-- If changing config keys/defaults, update both code and this AGENTS.md.
-- Prefer minimal, localized edits over broad refactors.
-- Keep backward compatibility for both DashScope and Ollama code paths.
-- If the user has a long evaluation running, avoid touching `outputs/` and avoid heavy concurrent GPU/CPU jobs unless needed.
-
-## 9) Pre-Completion Checklist
-
-Before finishing a code change, an agent should:
-
-1. Re-run the relevant command(s) from sections 3-5.
-2. Confirm index/eval/output paths still resolve correctly.
-3. Check imports and type hints for edited functions.
-4. Verify error messages are actionable.
-5. Summarize exactly what changed and how it was validated.
-
-## 10) Multimodal Architecture Roadmap
-
-This section records the intended system structure for the graduation project so later work
-stays aligned with the thesis plan and current implementation.
-
-### Current baseline: text RAG guide
-
-Flow:
-
-`user question -> text retriever -> prompt builder -> LLM -> TTS`
-
-Primary modules:
-
-- `src/retriever.py`
-- `src/prompt.py`
-- `src/llm.py`
-- `src/tts.py`
-- `app.py`
-- `run_cli.py`
-
-Role in project:
-
-- Stable baseline for museum guide QA
-- Main reference path for grounded answering and refusal behavior
-
-### Scheme A: pipeline-based multimodal QA (implemented direction)
-
-Flow:
-
-`uploaded image -> image embedding / FAISS search -> candidate artifact -> linked text query -> text KB retrieval -> LLM answer -> TTS`
-
-Primary modules:
-
-- `build_image_index.py`
-- `src/image_embedder.py`
-- `src/image_index.py`
-- `src/image_retriever.py`
-- `app.py`
-
-Current repo status:
-
-- Image indexing is available
-- Image upload entry is available in Streamlit
-- Low-confidence rejection is implemented with `min_score` and `min_gap`
-- Final answer generation still depends on text knowledge retrieval
-- `eval_scheme_a_cross_image.py` tests same-artifact different-image retrieval generalization
-
-Strengths:
-
-- Stronger controllability and explainability
-- Easier to trace mistakes to retrieval stage
-- Better fit for museum scenarios that prioritize factual grounding
-
-Risks:
-
-- If image retrieval picks the wrong artifact, downstream QA also drifts
-- Performance depends on image coverage and image quality
-
-### Scheme B: end-to-end multimodal QA (experimental branch)
-
-Target flow:
-
-`uploaded image + user question -> multimodal LLM -> answer -> optional TTS`
-
-Recommended grounded variant:
-
-`uploaded image + user question -> multimodal LLM extracts clues or draft recognition -> retrieve text KB -> multimodal LLM answers with image + retrieved context -> optional TTS`
-
-Current repo status:
-
-- `src/llm.py` now exposes a true image-bearing `call_multimodal_llm(...)` path
-- `src/prompt.py` now includes dedicated multimodal prompts for direct and grounded modes
-- `app.py` now exposes Scheme B as a selectable image QA experiment path
-- `eval_scheme_b.py` provides direct, grounded, and side-by-side offline evaluation
-
-Expected strengths:
-
-- More natural interaction
-- Potentially better handling of open-ended visual questions
-
-Expected risks:
-
-- More hallucination risk if not grounded by retrieval
-- Harder refusal calibration
-- Harder to explain failures in thesis and demo
-
-### Recommended product and experiment strategy
-
-Keep both branches instead of replacing one with the other.
-
-- Default demo path: Scheme A
-- Experimental comparison path: Scheme B
-- Thesis conclusion should compare reliability, flexibility, and latency instead of assuming one path is universally better
-
-### Planned comparison metrics
-
-- Top-1 artifact recognition accuracy
-- Top-3 artifact hit rate
-- Refusal accuracy on low-quality or out-of-knowledge-base images
-- Answer correctness on artifact facts
-- Groundedness / whether answer stays within retrievable evidence
-- End-to-end response time
-- User experience clarity in Streamlit demo
-
-### Planned generation-quality evaluation upgrade
-
-Current rule-based QA scoring is useful for closed factual fields, but it is too
-strict for Chinese explanatory answers. Future work should keep traditional
-metrics as reproducible references while adding stronger semantic judging:
-
-- Keep ROUGE-L and Coverage for text overlap / evidence coverage.
-- Optionally report BLEU, METEOR, CIDEr, or SPICE as legacy comparison metrics,
-  but do not use them as the only conclusion for Chinese museum-guide answers.
-- Keep CLIPScore for image-text relevance in caption-style tasks.
-- Add an LLM-as-Judge evaluator for generated descriptions and open QA answers,
-  scoring factuality, groundedness, completeness, fluency, hallucination, and
-  overall quality against GT descriptions and retrieved evidence.
-- Prefer a judge model that is different from the generation model, and manually
-  audit a sample of judged cases for thesis credibility.
-
-### Shared multimodal evaluation dataset
-
-To support both caption-generation-style evaluation and visual QA evaluation, the repo now
-uses a shared artifact-level dataset generated by `prepare_multimodal_eval_dataset.py`.
-
-Dataset design principles:
-
-- Split by artifact instead of by image to avoid leakage across train/val/test.
-- Reuse current text KB as the source of `reference_description` and `qa_pairs`.
-- Keep both artifact-level JSONL files and image-level expanded JSONL files.
-- Preserve `detail_url`, `source_urls`, and `image_url` so later manual auditing remains possible.
-
-Recommended usage:
-
-- Caption generation:
-  compare model outputs against `reference_description`
-- Visual QA:
-  run questions from `qa_pairs` against the model and score answer correctness
-
-### Implementation priority
-
-1. Continue improving the text knowledge base quality because both branches depend on it.
-2. Stabilize Scheme A evaluation, including image recognition accuracy and refusal cases.
-3. Use `eval_scheme_b.py` to compare Scheme B direct and grounded modes against Scheme A.
-4. Run side-by-side experiments and record representative success/failure cases for the thesis.
-5. Only explore lightweight local fine-tuning or LoRA after the two-branch comparison is runnable.
-
-### Change management note
-
-When implementing future multimodal features, preserve the distinction between:
-
-- image retrieval + text RAG
-- true end-to-end multimodal LLM QA
-
-Do not describe Scheme A as end-to-end multimodal LLM QA in docs, code comments, or thesis text.
+1. 标准路径和兼容路径是否都还可用
+2. 文档是否同步更新
+3. 关键输出路径是否未被改坏
+4. 是否引入新的硬编码路径或密钥
+5. 是否做了最小可执行验证

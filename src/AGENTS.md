@@ -5,15 +5,30 @@ Local guidance for agents editing the `src/` package.
 The root `AGENTS.md` is the source of truth for setup, evaluation commands,
 configuration, style, and project-level architecture. This file intentionally
 stays small and only records source-package boundaries so future agents do not
-have to reconcile two competing manuals.
+have to reconcile competing manuals.
 
 ## Scope
 
 This file applies only to Python modules inside `src/`.
 
-Top-level scripts such as `app.py`, `run_cli.py`, `build_index.py`, and the
-`eval_*.py` files call into `src/`, but their command usage and output artifacts
-are documented in the root `AGENTS.md`.
+Standard executable scripts live under `scripts/`:
+
+```text
+scripts/build/
+scripts/eval/
+scripts/judge/
+scripts/data_tools/
+```
+
+The repository root keeps compatibility wrappers such as `build_index.py`,
+`eval_scheme_b.py`, and `judge_guide_quality.py`. Prefer documenting and
+maintaining the `scripts/` paths; keep wrappers thin.
+
+The multimodal LoRA dataset is closed-set only. Images of the same artifact are
+split across `train` / `test`; single-image artifacts duplicate the same image
+into both splits. Keep this
+closed-set split contract unless the root `AGENTS.md` and README are updated
+first.
 
 ## Package Map
 
@@ -62,8 +77,8 @@ their return shape stable if multiple modules depend on them.
   return normalized `float32` vectors.
 - `retriever.py`: combine exact artifact-name matching with FAISS vector
   retrieval; keep retrieval results transparent as `(doc, score)` tuples.
-- `prompt.py`: build grounded Chinese guide prompts for text RAG and multimodal
-  Scheme B modes. Do not weaken refusal and grounding constraints.
+- `prompt.py`: build grounded guide prompts for text RAG and multimodal Scheme B
+  modes. Do not weaken refusal and grounding constraints.
 - `llm.py`: provide provider-neutral LLM calls for OpenAI-compatible,
   DashScope, and Ollama backends. Never hardcode API keys.
 - `tts.py`: convert generated Chinese text to MP3 via Edge TTS.
@@ -81,7 +96,7 @@ their return shape stable if multiple modules depend on them.
 - Use UTF-8 for all text I/O.
 - Keep user-facing errors actionable and in Chinese where the surrounding path is
   already Chinese.
-- Do not write to `outputs/` or `index/` from inside reusable `src/` helpers
+- Do not write to `outputs/` or `index/` from inside reusable `src` helpers
   unless the helper already explicitly owns that responsibility.
 - Preserve Scheme A and Scheme B as separate concepts:
   Scheme A is image retrieval plus text RAG.
