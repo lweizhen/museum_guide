@@ -137,7 +137,7 @@ python build_image_index.py
 
 该数据集只用于“同一文物不同图片”的闭集微调与闭集测试。多图文物保证 `train` 和 `test` 都有图片，额外图片优先划入 `train`；只有一张图片的文物会将同一张图同时写入 `train` 和 `test`。
 
-`train_lora.jsonl` / `test_lora.jsonl` 面向 `vl_rag_lora` 链路进行构造：除识别样本外，讲解、描述和问答样本都会在 instruction 中加入同一文物的参考资料上下文，训练目标是让 LoRA 学会“看图 + 结合 RAG 上下文 + 按导览口吻回答”。因此，新 adapter 更适合用于 `vl_rag_lora`，不一定会让裸 `vl_lora` 直接问答同步变好。
+`train_lora.jsonl` / `test_lora.jsonl` 面向 `vl_rag_lora` 链路进行构造：除识别样本外，讲解、描述和问答样本都会在 instruction 中加入同一文物的参考资料上下文。当前版本额外加入总览讲解、看点讲解和故事化讲解样本，训练目标是让 LoRA 学会“看图 + 结合 RAG 上下文 + 按导览口吻回答”。因此，新 adapter 更适合用于 `vl_rag_lora`，不一定会让裸 `vl_lora` 直接问答同步变好。
 
 ```bash
 python scripts/build/prepare_multimodal_eval_dataset.py

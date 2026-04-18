@@ -59,12 +59,12 @@ SHORT_ANSWER_FIELDS = {
 }
 
 GUIDE_ANSWER_PREFIX = {
-    "功能用途": "这件文物的主要功能或用途可以概括为：",
-    "历史意义": "从历史意义来看，",
-    "文化价值": "从文化价值来看，",
-    "纹饰与造型": "在纹饰与造型上，",
-    "历史背景": "从历史背景来看，",
-    "故事传说": "关于它的相关故事或传说，",
+    "功能用途": "它的用途可以这样理解：",
+    "历史意义": "它的重要之处在于，",
+    "文化价值": "它的文化价值主要体现在，",
+    "纹饰与造型": "参观时可以重点留意它的造型和纹饰：",
+    "历史背景": "把它放回当时的历史环境中看，",
+    "故事传说": "关于它的故事，可以这样讲给观众听：",
 }
 
 QA_FIELD_SPECS = [
@@ -341,8 +341,8 @@ def _with_grounding_context(question: str, context: str) -> str:
 要求：
 1. 事实以参考资料为准，不要编造资料中没有的信息。
 2. 如果问题询问名称、时代、类别、馆藏单位、材质等字段，请直接准确回答。
-3. 如果问题询问历史背景、文化价值、功能用途或故事，请用自然中文组织成适合导览讲解的回答。
-4. 回答控制在150字以内，不要输出参考资料标题或推理过程。
+3. 如果问题询问历史背景、文化价值、功能用途或故事，请像导览员一样自然讲解，先点明文物，再说明看点或价值。
+4. 回答控制在180字以内，不要输出参考资料标题或推理过程。
 
 【参考资料】
 {context}
@@ -350,18 +350,85 @@ def _with_grounding_context(question: str, context: str) -> str:
 【观众问题】
 {question}"""
 
+def _compact_join(parts: list[str]) -> str:
+    cleaned = [part.strip().rstrip("。") for part in parts if part and part.strip()]
+    if not cleaned:
+        return ""
+    return "。".join(cleaned) + "。"
 
-def _guide_answer_for_qa(answer_field: str, answer: str) -> str:
+
+def _artifact_name(fields: dict[str, str]) -> str:
+    return fields.get("展品名称", "").strip() or "这件文物"
+
+
+def _artifact_intro(fields: dict[str, str]) -> str:
+    name = _artifact_name(fields)
+    era = fields.get("所属时代", "").strip()
+    category = fields.get("类别", "").strip()
+    if era and category:
+        return f"{name}是一件{era}时期的{category}"
+    if era:
+        return f"{name}属于{era}时期"
+    if category:
+        return f"{name}是一件{category}"
+    return name
+
+def _guide_answer_for_qa(answer_field: str, answer: str, fields: dict[str, str]) -> str:
     answer = answer.strip()
     if not answer:
         return answer
     if answer_field in SHORT_ANSWER_FIELDS:
         return answer
+    name = fields.get("展品名称", "").strip() or "这件文物"
     prefix = GUIDE_ANSWER_PREFIX.get(answer_field, "")
     if not prefix or answer.startswith(prefix):
         return answer
-    return f"{prefix}{answer}"
+    return f"{name}值得慢慢看。{prefix}{answer}"
 
+
+def _guide_overview_output(fields: dict[str, str]) -> str:
+    intro = _artifact_intro(fields)
+    function = fields.get("功能用途", "").strip()
+    value = fields.get("文化价值", "").strip() or fields.get("历史意义", "").strip()
+    background = fields.get("历史背景", "").strip()
+    parts = [intro]
+    if function:
+        parts.append(f"它的用途与当时生活或礼仪密切相关，{function}")
+    if value:
+        parts.append(f"今天我们欣赏它，不只是看器物本身，也是在理解它背后的文化价值：{value}")
+    if background and len(parts) < 4:
+        parts.append(background)
+    return _compact_join(parts)
+
+
+def _guide_highlight_output(fields: dict[str, str]) -> str:
+    name = _artifact_name(fields)
+    shape = fields.get("纹饰与造型", "").strip()
+    function = fields.get("功能用途", "").strip()
+    value = fields.get("文化价值", "").strip() or fields.get("历史意义", "").strip()
+    parts = [f"参观{name}时，可以先抓住它最有代表性的看点"]
+    if shape:
+        parts.append(shape)
+    if function:
+        parts.append(f"这些特征并不只是装饰，也和它的用途有关：{function}")
+    if value:
+        parts.append(f"因此，它为我们理解相关历史文化提供了线索：{value}")
+    return _compact_join(parts)
+
+def _guide_story_output(fields: dict[str, str]) -> str:
+    name = _artifact_name(fields)
+    intro = _artifact_intro(fields)
+    story = fields.get("故事传说", "").strip()
+    background = fields.get("历史背景", "").strip()
+    value = fields.get("历史意义", "").strip() or fields.get("文化价值", "").strip()
+    parts = [f"如果把目光带回它所在的时代，{name}就不只是一件静静陈列的展品。{intro}"]
+    if story:
+        parts.append(story)
+    elif background:
+        parts.append(background)
+    if value:
+        parts.append(f"它留给今天的重要意义在于，{value}")
+    return _compact_join(parts)
 
 def _build_lora_samples_for_image(
     image_row: dict[str, object],
@@ -378,6 +445,9 @@ def _build_lora_samples_for_image(
         "split": image_row["split"],
     }
     grounding_context = _format_grounding_context(fields)
+    overview_text = _guide_overview_output(fields)
+    highlight_text = _guide_highlight_output(fields)
+    story_text = _guide_story_output(fields)
     samples: list[dict[str, object]] = [
         {
             **base,
@@ -416,6 +486,33 @@ def _build_lora_samples_for_image(
                 "grounding_context": grounding_context,
             }
         )
+    for task_name, question, output in [
+        (
+            "grounded_overview_guide",
+            "请用约30秒的导览口吻，为普通观众介绍这件文物。",
+            overview_text,
+        ),
+        (
+            "grounded_highlight_guide",
+            "请告诉观众参观这件文物时最值得注意的看点。",
+            highlight_text,
+        ),
+        (
+            "grounded_story_guide",
+            "请用更有画面感的方式讲讲这件文物背后的历史或故事。",
+            story_text,
+        ),
+    ]:
+        if output:
+            samples.append(
+                {
+                    **base,
+                    "task": task_name,
+                    "instruction": _with_grounding_context(question, grounding_context),
+                    "output": output,
+                    "grounding_context": grounding_context,
+                }
+            )
     for qa in qa_pairs:
         answer_field = qa["answer_field"]
         samples.append(
@@ -423,7 +520,7 @@ def _build_lora_samples_for_image(
                 **base,
                 "task": "grounded_qa",
                 "instruction": _with_grounding_context(qa["question"], grounding_context),
-                "output": _guide_answer_for_qa(answer_field, qa["answer"]),
+                "output": _guide_answer_for_qa(answer_field, qa["answer"], fields),
                 "answer_field": answer_field,
                 "grounding_context": grounding_context,
             }
@@ -553,7 +650,7 @@ def _build_samples(
     summary = {
         "dataset_type": "closed_set_lora",
         "split_policy": "Images are split within each artifact. Single-image artifacts are duplicated into train and test; extra images are assigned to train first.",
-        "lora_sample_policy": "LoRA samples are aligned with vl_rag_lora. Except for identify, samples include grounding_context and ask the model to answer with image plus retrieved exhibit context.",
+        "lora_sample_policy": "LoRA samples are aligned with vl_rag_lora and enhanced for guide style. Except for identify, samples include grounding_context; additional overview/highlight/story guide tasks teach museum-guide tone and richer explanations.",
         "artifact_count": len(samples),
         "image_count": len(unique_image_keys),
         "image_assignment_count": image_assignment_count,
