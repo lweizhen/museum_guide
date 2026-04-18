@@ -49,6 +49,24 @@ DESCRIPTION_FIELDS = [
     "故事传说",
 ]
 
+SHORT_ANSWER_FIELDS = {
+    "展品名称",
+    "所属时代",
+    "类别",
+    "馆藏单位",
+    "材质",
+    "出土地",
+}
+
+GUIDE_ANSWER_PREFIX = {
+    "功能用途": "这件文物的主要功能或用途可以概括为：",
+    "历史意义": "从历史意义来看，",
+    "文化价值": "从文化价值来看，",
+    "纹饰与造型": "在纹饰与造型上，",
+    "历史背景": "从历史背景来看，",
+    "故事传说": "关于它的相关故事或传说，",
+}
+
 QA_FIELD_SPECS = [
     ("展品名称", "这件文物叫什么名字？"),
     ("所属时代", "这件文物属于什么时代？"),
@@ -308,6 +326,43 @@ def _identification_output(fields: dict[str, str]) -> str:
     return "，".join(parts) + "。"
 
 
+def _format_grounding_context(fields: dict[str, str]) -> str:
+    lines: list[str] = []
+    for label in FACT_FIELD_ORDER:
+        value = fields.get(label, "").strip()
+        if value:
+            lines.append(f"【{label}】{value}")
+    return "\n".join(lines)
+
+
+def _with_grounding_context(question: str, context: str) -> str:
+    return f"""你是一名博物馆导览员。请结合图片和下方参考资料回答观众问题。
+
+要求：
+1. 事实以参考资料为准，不要编造资料中没有的信息。
+2. 如果问题询问名称、时代、类别、馆藏单位、材质等字段，请直接准确回答。
+3. 如果问题询问历史背景、文化价值、功能用途或故事，请用自然中文组织成适合导览讲解的回答。
+4. 回答控制在150字以内，不要输出参考资料标题或推理过程。
+
+【参考资料】
+{context}
+
+【观众问题】
+{question}"""
+
+
+def _guide_answer_for_qa(answer_field: str, answer: str) -> str:
+    answer = answer.strip()
+    if not answer:
+        return answer
+    if answer_field in SHORT_ANSWER_FIELDS:
+        return answer
+    prefix = GUIDE_ANSWER_PREFIX.get(answer_field, "")
+    if not prefix or answer.startswith(prefix):
+        return answer
+    return f"{prefix}{answer}"
+
+
 def _build_lora_samples_for_image(
     image_row: dict[str, object],
     fields: dict[str, str],
@@ -322,6 +377,7 @@ def _build_lora_samples_for_image(
         "image_url": image_row["image_url"],
         "split": image_row["split"],
     }
+    grounding_context = _format_grounding_context(fields)
     samples: list[dict[str, object]] = [
         {
             **base,
@@ -331,9 +387,13 @@ def _build_lora_samples_for_image(
         },
         {
             **base,
-            "task": "caption",
-            "instruction": "请以博物馆导览员口吻介绍图片中的文物。",
+            "task": "grounded_caption",
+            "instruction": _with_grounding_context(
+                "请以博物馆导览员口吻介绍图片中的文物，重点说明名称、时代、类别、用途和文化价值。",
+                grounding_context,
+            ),
             "output": reference_description,
+            "grounding_context": grounding_context,
         },
     ]
     guide_parts = [
@@ -347,23 +407,28 @@ def _build_lora_samples_for_image(
         samples.append(
             {
                 **base,
-                "task": "guide_style",
-                "instruction": "如果你是博物馆讲解员，请讲解这件文物的历史背景和文化价值。",
+                "task": "grounded_guide_style",
+                "instruction": _with_grounding_context(
+                    "请讲解这件文物的历史背景、历史意义和文化价值。",
+                    grounding_context,
+                ),
                 "output": guide_text,
+                "grounding_context": grounding_context,
             }
         )
     for qa in qa_pairs:
+        answer_field = qa["answer_field"]
         samples.append(
             {
                 **base,
-                "task": "qa",
-                "instruction": qa["question"],
-                "output": qa["answer"],
-                "answer_field": qa["answer_field"],
+                "task": "grounded_qa",
+                "instruction": _with_grounding_context(qa["question"], grounding_context),
+                "output": _guide_answer_for_qa(answer_field, qa["answer"]),
+                "answer_field": answer_field,
+                "grounding_context": grounding_context,
             }
         )
     return samples
-
 
 def _build_samples(
     image_groups: dict[str, list[dict[str, str]]],
@@ -488,6 +553,7 @@ def _build_samples(
     summary = {
         "dataset_type": "closed_set_lora",
         "split_policy": "Images are split within each artifact. Single-image artifacts are duplicated into train and test; extra images are assigned to train first.",
+        "lora_sample_policy": "LoRA samples are aligned with vl_rag_lora. Except for identify, samples include grounding_context and ask the model to answer with image plus retrieved exhibit context.",
         "artifact_count": len(samples),
         "image_count": len(unique_image_keys),
         "image_assignment_count": image_assignment_count,

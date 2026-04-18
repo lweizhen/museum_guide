@@ -82,6 +82,8 @@ python scripts/build/build_image_index.py
 
 同一文物的图片在 `train` / `test` 内划分；单图文物会把同一张图同时写入 `train` 和 `test`。该数据集类型在 `summary.json` 中标记为 `closed_set_lora`。
 
+LoRA 样本应优先对齐 `vl_rag_lora` 链路：除 `identify` 外，caption、guide style、QA 样本都应包含 `grounding_context`，instruction 中要显式给出参考资料，训练目标是“图像 + RAG 上下文 + 导览式回答”。
+
 ```bash
 python scripts/build/prepare_multimodal_eval_dataset.py
 ```
