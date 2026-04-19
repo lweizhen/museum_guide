@@ -105,8 +105,8 @@ streamlit run app.py
 
 页面提供两个主要方案入口：
 
-- 方案 A：图像检索增强文本问答，本地完成图片检索、文本检索和文本 RAG 回答生成。
-- 方案 B4：`vl_rag_lora`，本地完成图片检索和知识检索，通过 SSH 隧道调用远程 GPU 上的 Qwen2.5-VL+RAG+LoRA 服务。
+- 方案 A：图像检索增强文本问答，通过 SSH 隧道调用远程 GPU 服务完成图片检索、文本检索和文本 RAG 回答生成。
+- 方案 B4：`vl_rag_lora`，通过 SSH 隧道调用远程 GPU 服务完成图片检索、文本检索和 Qwen2.5-VL+RAG+LoRA 回答生成。
 
 远程 GPU 服务入口：
 

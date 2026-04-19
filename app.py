@@ -1,16 +1,14 @@
 from __future__ import annotations
 
 from io import BytesIO
+from typing import Any
 
 import streamlit as st
 from PIL import Image
 
 from src.config import REMOTE_VL_BASE_URL
-from src.image_retriever import assess_image_match_confidence, search_image
-from src.llm import call_llm
-from src.prompt import build_citation, build_prompt
-from src.remote_vl import call_remote_vl_rag_lora
-from src.retriever import retrieve
+from src.prompt import build_citation
+from src.remote_vl import call_remote_scheme_a, call_remote_vl_rag_lora
 from src.tts import text_to_mp3
 
 
@@ -25,29 +23,49 @@ def load_uploaded_image(uploaded_file) -> Image.Image:
     return Image.open(BytesIO(data)).convert("RGB")
 
 
+def normalize_contexts(raw_contexts: list[dict[str, Any]] | None) -> list[tuple[str, float]]:
+    contexts: list[tuple[str, float]] = []
+    for item in raw_contexts or []:
+        text = str(item.get("text", "")).strip()
+        if not text:
+            continue
+        try:
+            score = float(item.get("score", 0.0))
+        except (TypeError, ValueError):
+            score = 0.0
+        contexts.append((text, score))
+    return contexts
+
+
 def render_contexts(contexts: list[tuple[str, float]]) -> None:
+    if not contexts:
+        return
     with st.expander("检索到的知识依据", expanded=True):
         for idx, (text, score) in enumerate(contexts, start=1):
             st.markdown(f"**依据 {idx}**（score={score:.4f}）")
             st.write(text)
 
 
-def render_image_matches(matches: list[dict[str, str | float]]) -> None:
+def render_image_matches(matches: list[dict[str, Any]] | None) -> None:
+    if not matches:
+        return
     with st.expander("图像检索候选文物", expanded=True):
         for idx, item in enumerate(matches, start=1):
             name = item.get("name", "-")
             era = item.get("era", "-")
             museum = item.get("museum", "-")
-            score = float(item.get("score", 0.0))
+            try:
+                score = float(item.get("score", 0.0))
+            except (TypeError, ValueError):
+                score = 0.0
             st.write(f"{idx}. {name} | {era} | {museum} | score={score:.4f}")
 
 
 def render_answer(
     answer: str,
-    contexts: list[tuple[str, float]] | None,
+    contexts: list[tuple[str, float]],
     audio_name: str,
 ) -> None:
-    contexts = contexts or []
     citation = build_citation(contexts)
     final_text = answer.strip() + (("\n\n" + citation) if citation else "")
 
@@ -63,86 +81,27 @@ def render_answer(
         st.caption(str(exc))
 
 
-def build_image_query(match: dict[str, str | float], user_question: str) -> str:
-    name = str(match.get("name", "")).strip()
-    era = str(match.get("era", "")).strip()
-    museum = str(match.get("museum", "")).strip()
+def render_remote_result(result: dict[str, Any], audio_name: str) -> None:
+    query = str(result.get("query", "")).strip()
+    if query:
+        st.caption(f"远程实际查询：{query}")
 
-    prefix_parts = [part for part in [name, era, museum] if part and part != "-"]
-    prefix = " ".join(prefix_parts)
-    question = user_question.strip() or DEFAULT_IMAGE_QUESTION
-
-    if prefix:
-        return f"{prefix} {question}"
-    return question
-
-
-def get_image_matches(image: Image.Image) -> list[dict[str, str | float]]:
-    matches = search_image(image)
-    if not matches:
-        raise RuntimeError("没有检索到候选文物，请确认图片索引已经构建。")
-    return matches
-
-
-def get_confident_match(
-    matches: list[dict[str, str | float]],
-) -> dict[str, str | float]:
-    confident, reason = assess_image_match_confidence(matches)
-    if not confident:
-        raise RuntimeError(f"图像检索结果不够稳定：{reason}")
-    return matches[0]
-
-
-def run_scheme_a_image_qa(image: Image.Image, user_question: str) -> None:
-    matches = get_image_matches(image)
-    render_image_matches(matches)
-    best_match = get_confident_match(matches)
-
-    query = build_image_query(best_match, user_question)
-    contexts = retrieve(query)
-    if not contexts:
-        raise RuntimeError("没有检索到可用于回答的文物知识依据。")
-
+    render_image_matches(result.get("matches"))
+    contexts = normalize_contexts(result.get("contexts"))
     render_contexts(contexts)
-    prompt = build_prompt(query, contexts)
-    answer = call_llm(prompt)
-    render_answer(answer, contexts, "scheme_a_answer.mp3")
-
-
-def run_vl_rag_lora_remote(
-    image: Image.Image,
-    user_question: str,
-    remote_base_url: str,
-) -> None:
-    matches = get_image_matches(image)
-    render_image_matches(matches)
-    best_match = get_confident_match(matches)
-
-    query = build_image_query(best_match, user_question)
-    contexts = retrieve(query)
-    if not contexts:
-        raise RuntimeError("没有检索到可用于远程多模态问答的文物知识依据。")
-
-    render_contexts(contexts)
-    answer = call_remote_vl_rag_lora(
-        image=image,
-        question=query,
-        contexts=contexts,
-        base_url=remote_base_url,
-    )
-    render_answer(answer, contexts, "vl_rag_lora_answer.mp3")
+    render_answer(str(result.get("answer", "")), contexts, audio_name)
 
 
 def main() -> None:
     st.title("文物语音导览助手")
     st.caption(
-        "页面提供两个展示入口：方案 A 使用本地图像检索增强文本 RAG；"
-        "方案 B4 通过 SSH 隧道调用远程 GPU 上的 Qwen2.5-VL+RAG+LoRA。"
+        "本地页面只负责上传图片、输入问题和展示结果；方案 A 与方案 B4 "
+        "均通过 SSH 隧道调用远程 GPU 服务完成检索和模型生成。"
     )
 
     st.sidebar.header("远程 GPU 设置")
     remote_base_url = st.sidebar.text_input(
-        "远程多模态服务地址",
+        "远程导览服务地址",
         value=REMOTE_VL_BASE_URL,
         help="本地通过 SSH 隧道访问远程服务时通常保持默认值即可。",
     )
@@ -156,7 +115,7 @@ def main() -> None:
     scheme = st.radio(
         "选择问答方案",
         [
-            "方案 A：图像检索增强文本问答",
+            "方案 A：图像检索增强文本问答（远程 GPU）",
             "方案 B4：Qwen2.5-VL + RAG + LoRA（远程 GPU）",
         ],
     )
@@ -183,15 +142,21 @@ def main() -> None:
             return
 
         try:
-            with st.spinner("正在检索文物并生成回答，请稍候..."):
+            with st.spinner("正在调用远程 GPU 服务生成回答，请稍候..."):
                 if scheme.startswith("方案 A"):
-                    run_scheme_a_image_qa(image, user_question)
-                else:
-                    run_vl_rag_lora_remote(
-                        image,
-                        user_question,
-                        remote_base_url,
+                    result = call_remote_scheme_a(
+                        image=image,
+                        question=user_question,
+                        base_url=remote_base_url,
                     )
+                    render_remote_result(result, "scheme_a_answer.mp3")
+                else:
+                    result = call_remote_vl_rag_lora(
+                        image=image,
+                        question=user_question,
+                        base_url=remote_base_url,
+                    )
+                    render_remote_result(result, "vl_rag_lora_answer.mp3")
         except Exception as exc:
             st.error(str(exc))
 
