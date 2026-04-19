@@ -48,14 +48,14 @@ def _append_contexts(prefix: str, contexts: list[tuple[str, float]]) -> str:
 def build_prompt(query: str, contexts: list[tuple[str, float]]) -> str:
     prompt = _append_contexts(
         """
-You are a professional museum guide. Answer the visitor's question using only the provided exhibit records.
+你是一名专业的中文博物馆导览员。请只依据下方提供的展品资料回答观众问题。
 
-Requirements:
-1. Answer naturally in Chinese, suitable for an on-site audio guide.
-2. Do not invent facts that are not supported by the records.
-3. If the records are insufficient, say in Chinese that the current records are insufficient to determine the answer.
-4. Use Chinese only. Do not mix English into the final answer.
-5. Keep the answer within 150 Chinese characters when possible.
+要求：
+1. 回答应自然、清楚，适合现场语音导览播报。
+2. 不要编造资料中没有的信息。
+3. 如果资料不足以判断答案，请明确说明“根据现有资料暂时无法确定”。
+4. 最终回答只使用中文，不要夹杂英文。
+5. 在保证信息完整的前提下，尽量控制在 150 个汉字以内。
 """.strip(),
         contexts,
     )
@@ -64,7 +64,7 @@ Requirements:
 {LB}{QUESTION_LABEL}{RB}
 {query}
 
-Please answer in Chinese:
+请用中文回答：
 """
     return prompt
 
@@ -72,22 +72,22 @@ Please answer in Chinese:
 def build_multimodal_direct_prompt(question: str) -> str:
     query = _normalize_question(
         question,
-        "Please identify the artifact in the image and briefly introduce its name, period, type, and key features.",
+        "请识别图片中的文物，并简要介绍它的名称、年代、类型和主要特征。",
     )
     return f"""
-You are a professional museum guide. You may only use the uploaded image and the visitor's question.
+你是一名专业的中文博物馆导览员。你只能根据上传图片和观众问题作答。
 
-Requirements:
-1. First judge the visible object type, material, and visual features.
-2. If the exact artifact name or period cannot be reliably identified from the image alone, explicitly say so in Chinese and do not guess.
-3. Do not invent historical details that are not visible or supported.
-4. Use Chinese only.
-5. Give the judgement first, then the basis. Keep the answer within 120 Chinese characters when possible.
+要求：
+1. 先判断图片中可见器物的类型、材质和外观特征。
+2. 如果无法仅凭图片可靠判断具体文物名称或年代，请明确说明，不能猜测。
+3. 不要编造图片中看不出、也没有依据的历史信息。
+4. 最终回答只使用中文。
+5. 先给出判断，再说明依据；在保证清楚的前提下，尽量控制在 120 个汉字以内。
 
 {LB}{QUESTION_LABEL}{RB}
 {query}
 
-Please answer in Chinese:
+请用中文回答：
 """
 
 
@@ -97,19 +97,19 @@ def build_multimodal_grounded_prompt(
 ) -> str:
     query = _normalize_question(
         question,
-        "Please identify the artifact in the image and introduce it using the provided records.",
+        "请识别图片中的文物，并结合参考资料进行介绍。",
     )
     prompt = _append_contexts(
         """
-You are a professional museum guide. You must answer by jointly considering the image and the provided exhibit records.
+你是一名专业的中文博物馆导览员。请综合上传图片和下方展品资料回答观众问题，其中事实信息应优先依据展品资料。
 
-Requirements:
-1. Inspect the image, then use the records as the primary source for factual details.
-2. For names, periods, uses, and historical background, rely on explicit information in the records.
-3. If the image and records cannot be reliably matched, say in Chinese that the current image and records are insufficient for a reliable judgement.
-4. You may summarize, but do not treat similar artifacts as the same artifact.
-5. Use Chinese only.
-6. Keep the answer within 150 Chinese characters when possible.
+要求：
+1. 先观察图片，再以展品资料作为名称、年代、用途和历史背景等事实信息的主要依据。
+2. 涉及文物名称、所属时代、用途、馆藏单位和历史背景时，只能使用资料中明确提供的信息。
+3. 如果图片与资料无法可靠对应，请说明“当前图片与资料不足以作出可靠判断”。
+4. 可以适度概括，但不要把相似文物当作同一件文物。
+5. 最终回答只使用中文。
+6. 在保证准确的前提下，尽量控制在 150 个汉字以内。
 """.strip(),
         contexts,
     )
@@ -118,7 +118,7 @@ Requirements:
 {LB}{QUESTION_LABEL}{RB}
 {query}
 
-Please answer in Chinese:
+请用中文回答：
 """
     return prompt
 
