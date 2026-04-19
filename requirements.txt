@@ -8,6 +8,9 @@ pyyaml
 requests
 beautifulsoup4
 pillow
+fastapi
+uvicorn
+python-multipart
 transformers>=4.49.0
 peft
 accelerate

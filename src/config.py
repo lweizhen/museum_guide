@@ -179,3 +179,15 @@ JUDGE_BASE_URL = _get("judge.base_url", "JUDGE_BASE_URL", "https://api.openai.co
 JUDGE_API_KEY = _get("judge.api_key", "JUDGE_API_KEY", "")
 JUDGE_TEMPERATURE = float(_get("judge.temperature", "JUDGE_TEMPERATURE", "0.0"))
 JUDGE_TIMEOUT_SECONDS = int(_get("judge.timeout_seconds", "JUDGE_TIMEOUT_SECONDS", "120"))
+
+# ======================
+# Remote Qwen2.5-VL service
+# ======================
+REMOTE_VL_BASE_URL = _get(
+    "remote_vl.base_url",
+    "REMOTE_VL_BASE_URL",
+    "http://127.0.0.1:8000",
+)
+REMOTE_VL_TIMEOUT_SECONDS = int(
+    _get("remote_vl.timeout_seconds", "REMOTE_VL_TIMEOUT_SECONDS", "600")
+)

@@ -601,3 +601,58 @@ outputs/archive/   # 历史材料
 1. 增加知识库外图片、模糊图片、遮挡图片等拒答评测。
 2. 增加人工抽样核验，用于校准大模型裁判结果。
 3. 构建专门的导览口吻测试集，评估模型是否真的更像导览员。
+
+## 14. 本地网页调用远程 Qwen2.5-VL+RAG+LoRA
+
+由于微调后的 Qwen2.5-VL 模型无法在普通本地电脑上直接加载，网页演示采用“本地页面 + SSH 隧道 + 远程 GPU 推理服务”的方式。页面中提供两个方案入口：
+
+- 方案 A：图像检索增强文本问答。该方案在本地完成图片检索、文本检索和文本大模型回答生成。
+- 方案 B4：Qwen2.5-VL + RAG + LoRA。该方案在本地完成图片检索和知识库检索，然后通过 HTTP 接口调用远程 GPU 上的微调多模态模型生成回答。
+
+### 14.1 远程 GPU 启动多模态推理服务
+
+在远程 GPU 服务器中执行：
+
+```bash
+cd /root/autodl-tmp/museum_guide
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+
+python scripts/serve/serve_qwen25vl_lora_api.py \
+  --model-path /root/autodl-tmp/models/Qwen2.5-VL-3B-Instruct \
+  --adapter-path outputs/lora/qwen25vl3b_museum_grounded \
+  --host 127.0.0.1 \
+  --port 8000
+```
+
+如果使用的是其他 LoRA adapter，请把 `--adapter-path` 替换为实际目录，例如：
+
+```bash
+--adapter-path outputs/lora/qwen25vl3b_museum
+```
+
+### 14.2 本地建立 SSH 隧道
+
+在本地 PowerShell 另开一个窗口执行：
+
+```powershell
+ssh -p 21870 -L 8000:127.0.0.1:8000 root@connect.cqa1.seetacloud.com
+```
+
+该窗口保持连接即可。建立隧道后，本地网页访问 `http://127.0.0.1:8000` 时，实际会转发到远程 GPU 的推理服务。
+
+### 14.3 本地启动网页
+
+在本地项目目录执行：
+
+```powershell
+cd D:\STUDY\graduation_design\museum_guide
+streamlit run app.py
+```
+
+打开页面后选择：
+
+- `方案 A：图像检索增强文本问答`
+- `方案 B4：Qwen2.5-VL + RAG + LoRA（远程 GPU）`
+
+若选择方案 B4，请确认远程服务已启动，并且 SSH 隧道窗口没有关闭。

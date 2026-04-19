@@ -103,6 +103,22 @@ python scripts/finetune/eval_qwen25vl_lora.py --model-path /path/to/Qwen2.5-VL-3
 streamlit run app.py
 ```
 
+页面提供两个主要方案入口：
+
+- 方案 A：图像检索增强文本问答，本地完成图片检索、文本检索和文本 RAG 回答生成。
+- 方案 B4：`vl_rag_lora`，本地完成图片检索和知识检索，通过 SSH 隧道调用远程 GPU 上的 Qwen2.5-VL+RAG+LoRA 服务。
+
+远程 GPU 服务入口：
+
+```bash
+python -m pip install -r requirements.txt
+python scripts/serve/serve_qwen25vl_lora_api.py \
+  --model-path /path/to/Qwen2.5-VL-3B-Instruct \
+  --adapter-path outputs/lora/qwen25vl3b_museum_grounded \
+  --host 127.0.0.1 \
+  --port 8000
+```
+
 ### 启动命令行
 
 ```bash
@@ -187,6 +203,7 @@ outputs/
 - `dashscope.model`
 - `dashscope.multimodal_model`
 - `judge.*`
+- `remote_vl.*`
 - `data_path`
 - `index_path`
 - `image_*`

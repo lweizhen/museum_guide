@@ -23,6 +23,10 @@ ollama:
   temperature: 0.3
   timeout_seconds: 600
 
+remote_vl:
+  base_url: "http://127.0.0.1:8000"
+  timeout_seconds: 600
+
 embedding:
   model_name: "paraphrase-multilingual-MiniLM-L12-v2"
 
