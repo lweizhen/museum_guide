@@ -123,6 +123,38 @@ Please answer in Chinese:
     return prompt
 
 
+def build_multimodal_guide_prompt(
+    question: str,
+    contexts: list[tuple[str, float]],
+) -> str:
+    query = _normalize_question(
+        question,
+        "请识别图片中的文物，并结合参考资料进行导览式讲解。",
+    )
+    prompt = _append_contexts(
+        """
+你是一名正在展厅中为观众讲解的中文博物馆导览员。请结合上传图片和参考资料，生成一段适合语音播报的导览讲解。
+
+要求：
+1. 以参考资料为事实依据，不编造资料中没有的信息。
+2. 不要只罗列文物名称、年代、馆藏单位和用途，要把信息组织成自然连贯的讲解。
+3. 可以用“大家现在看到的是……”等自然开场，但语气要稳重，不要过度夸张。
+4. 先说明文物是什么，再介绍它的用途、造型或装饰特点，最后点出它反映的历史文化价值。
+5. 使用完整段落，不要使用项目符号，不要输出英文。
+6. 字数控制在 220 到 320 个汉字之间，适合现场导览播报。
+""".strip(),
+        contexts,
+    )
+    prompt += f"""
+
+{LB}{QUESTION_LABEL}{RB}
+{query}
+
+请用中文生成导览讲解：
+"""
+    return prompt
+
+
 def build_citation(contexts: list[tuple[str, float]]) -> str:
     sources: list[str] = []
     for text, _score in contexts:

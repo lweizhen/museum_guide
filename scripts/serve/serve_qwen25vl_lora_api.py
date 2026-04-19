@@ -19,7 +19,11 @@ from fastapi.responses import JSONResponse  # noqa: E402
 from src.hf_qwen_vl import HfQwenVlGenerator  # noqa: E402
 from src.image_retriever import assess_image_match_confidence, search_image  # noqa: E402
 from src.llm import call_llm  # noqa: E402
-from src.prompt import build_multimodal_grounded_prompt, build_prompt  # noqa: E402
+from src.prompt import (  # noqa: E402
+    build_multimodal_grounded_prompt,
+    build_multimodal_guide_prompt,
+    build_prompt,
+)
 from src.retriever import retrieve  # noqa: E402
 
 
@@ -36,7 +40,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--adapter-path", required=True, help="LoRA adapter path.")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
-    parser.add_argument("--max-new-tokens", type=int, default=256)
+    parser.add_argument("--max-new-tokens", type=int, default=384)
     parser.add_argument("--max-pixels", type=int, default=512 * 512)
     parser.add_argument("--no-bf16", action="store_true")
     return parser.parse_args()
@@ -185,7 +189,7 @@ async def generate_vl_rag_lora(
     try:
         tmp_path = await save_upload_to_temp(image)
         grounding = build_grounding(tmp_path, question)
-        prompt = build_multimodal_grounded_prompt(
+        prompt = build_multimodal_guide_prompt(
             grounding["query"],
             grounding["contexts"],
         )
