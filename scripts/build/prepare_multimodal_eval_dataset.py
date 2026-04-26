@@ -15,11 +15,18 @@ from pathlib import Path
 from typing import Any
 
 from src.config import DATA_PATH, IMAGE_META_PATH
+from src.llm import call_llm
 
 
 OUT_DIR = Path("data/multimodal_eval")
 DEFAULT_TRAIN_RATIO = 0.7
 DEFAULT_VAL_RATIO = 0.15
+
+ANSWER_GENERATOR = "template"
+LLM_CACHE: dict[str, str] = {}
+LLM_CACHE_PATH: Path | None = None
+LLM_MAX_CALLS = 0
+LLM_CALL_COUNT = 0
 
 FACT_FIELD_ORDER = [
     "展品名称",
@@ -114,6 +121,23 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=0,
         help="Only export the first N matched artifacts after sorting. 0 means all.",
+    )
+    parser.add_argument(
+        "--answer-generator",
+        choices=["template", "llm"],
+        default="template",
+        help="How to generate LoRA target answers. template=rule-based templates; llm=use the configured text LLM to generate grounded museum-guide answers.",
+    )
+    parser.add_argument(
+        "--llm-cache",
+        default="data/multimodal_eval/llm_generation_cache.jsonl",
+        help="Append-only cache file for LLM-generated LoRA answers. Used when --answer-generator llm.",
+    )
+    parser.add_argument(
+        "--llm-max-calls",
+        type=int,
+        default=0,
+        help="Maximum new LLM generations to make in this run. 0 means no cap. Useful for staged generation and resume.",
     )
     return parser.parse_args()
 
@@ -373,6 +397,114 @@ def _artifact_intro(fields: dict[str, str]) -> str:
         return f"{name}是一件{category}"
     return name
 
+
+def _artifact_identity_clause(fields: dict[str, str]) -> str:
+    era = fields.get("所属时代", "").strip()
+    if not era:
+        return ""
+    dynastic_eras = {
+        "夏", "商", "西周", "东周", "春秋", "战国", "秦", "西汉", "东汉", "汉", "三国",
+        "西晋", "东晋", "晋", "南北朝", "隋", "唐", "五代", "北宋", "南宋", "宋", "辽",
+        "金", "元", "明", "清", "民国"
+    }
+    if era in dynastic_eras:
+        return f"它出自{era}代"
+    if era.endswith(("代", "朝")):
+        return f"它出自{era}"
+    return f"它出自{era}时期"
+
+
+def _category_clause(fields: dict[str, str]) -> str:
+    return ""
+
+
+def _museum_clause(fields: dict[str, str]) -> str:
+    museum = fields.get("馆藏单位", "").strip()
+    if museum:
+        return f"现在收藏在{museum}"
+    return ""
+
+
+def _value_to_spoken_clause(value: str) -> str:
+    value = value.strip()
+    replacements = (
+        ("反映了", "它反映出"),
+        ("体现了", "它体现出"),
+        ("展现了", "它展现出"),
+        ("折射出", "它折射出"),
+        ("说明了", "它说明了"),
+        ("见证了", "它见证了"),
+    )
+    for prefix, replacement in replacements:
+        if value.startswith(prefix):
+            return replacement + value[len(prefix):]
+    return value
+
+
+def _value_to_seen_clause(value: str) -> str:
+    value = value.strip()
+    replacements = (
+        "反映了",
+        "体现了",
+        "展现了",
+        "折射出",
+        "说明了",
+        "见证了",
+    )
+    for prefix in replacements:
+        if value.startswith(prefix):
+            return value[len(prefix):]
+    return value
+
+
+def _guide_caption_output(fields: dict[str, str]) -> str:
+    name = _artifact_name(fields)
+    identity_clause = _artifact_identity_clause(fields)
+    category_clause = _category_clause(fields)
+    museum_clause = _museum_clause(fields)
+    function = fields.get("功能用途", "").strip()
+    value = fields.get("文化价值", "").strip() or fields.get("历史意义", "").strip()
+    background = fields.get("历史背景", "").strip()
+    parts: list[str] = [f"大家现在看到的是{name}"]
+    if identity_clause:
+        parts.append(identity_clause)
+    if category_clause:
+        parts.append(category_clause)
+    if museum_clause:
+        parts.append(museum_clause)
+    if function:
+        parts.append(f"在当时，这类器物并不只是摆设，{function}")
+    if value:
+        if value.startswith(("反映", "体现", "展现", "折射", "说明", "见证", "对研究", "为研究")):
+            parts.append(f"透过它，我们也能看到{_value_to_seen_clause(value)}")
+        else:
+            parts.append(f"透过它，我们也能感受到{value}")
+    if background:
+        parts.append(f"把它放回当时的生活里看，{background}")
+    return _compact_join(parts)
+
+
+def _guide_style_output(fields: dict[str, str]) -> str:
+    name = _artifact_name(fields)
+    identity_clause = _artifact_identity_clause(fields)
+    background = fields.get("历史背景", "").strip()
+    value = fields.get("文化价值", "").strip() or fields.get("历史意义", "").strip()
+    story = fields.get("故事传说", "").strip()
+    parts = ["这件文物真正吸引人的地方，不只在器物本身，也在它背后连着的时代生活和文化信息"]
+    if identity_clause:
+        parts.append(identity_clause)
+    if background:
+        parts.append(f"放在当时的时代里看，{background}")
+    if value:
+        if value.startswith(("反映", "体现", "展现", "折射", "说明", "见证", "对研究", "为研究")):
+            parts.append(f"所以说，今天我们还能从中看到{_value_to_seen_clause(value)}")
+        else:
+            parts.append(f"也正因为这样，它在今天依然有价值，因为{value}")
+    if story:
+        parts.append(f"要是再联系它背后的故事来看，{story}")
+    return _compact_join(parts)
+
+
 def _guide_answer_for_qa(answer_field: str, answer: str, fields: dict[str, str]) -> str:
     answer = answer.strip()
     if not answer:
@@ -380,24 +512,44 @@ def _guide_answer_for_qa(answer_field: str, answer: str, fields: dict[str, str])
     if answer_field in SHORT_ANSWER_FIELDS:
         return answer
     name = fields.get("展品名称", "").strip() or "这件文物"
+    if answer_field == "功能用途":
+        return f"在当时，人们会这样使用{name}：{answer}"
+    if answer_field == "文化价值":
+        if answer.startswith(("反映", "体现", "展现", "折射", "说明", "见证", "对研究", "为研究")):
+            return f"它让我们看到{_value_to_seen_clause(answer)}"
+        return f"这件文物真正值得关注的地方在于，{answer}"
+    if answer_field == "历史背景":
+        return f"要理解{name}，得先把它放回当时的时代环境里。{answer}"
+    if answer_field == "历史意义":
+        return f"{name}之所以重要，正在于{answer}"
+    if answer_field == "纹饰与造型":
+        return f"看{name}的时候，可以先注意这些细节：{answer}"
+    if answer_field == "故事传说":
+        return f"如果顺着它背后的故事往下看，{answer}"
     prefix = GUIDE_ANSWER_PREFIX.get(answer_field, "")
-    if not prefix or answer.startswith(prefix):
-        return answer
-    return f"{name}值得慢慢看。{prefix}{answer}"
+    if prefix and not answer.startswith(prefix):
+        return f"{prefix}{answer}"
+    return answer
 
 
 def _guide_overview_output(fields: dict[str, str]) -> str:
-    intro = _artifact_intro(fields)
+    name = _artifact_name(fields)
+    identity_clause = _artifact_identity_clause(fields)
     function = fields.get("功能用途", "").strip()
     value = fields.get("文化价值", "").strip() or fields.get("历史意义", "").strip()
     background = fields.get("历史背景", "").strip()
-    parts = [intro]
+    parts = [f"大家现在看到的是{name}"]
+    if identity_clause:
+        parts.append(identity_clause)
     if function:
-        parts.append(f"它的用途与当时生活或礼仪密切相关，{function}")
+        parts.append(f"它和当时人们的日常生活联系很紧，{function}")
     if value:
-        parts.append(f"今天我们欣赏它，不只是看器物本身，也是在理解它背后的文化价值：{value}")
+        if value.startswith(("反映", "体现", "展现", "折射", "说明", "见证", "对研究", "为研究")):
+            parts.append(f"今天再看它，我们不只是看一件器物，也是在读它背后的文化信息，比如{_value_to_seen_clause(value)}")
+        else:
+            parts.append(f"今天再看它，我们不只是看一件器物，也是在读它背后的文化信息，因为{value}")
     if background and len(parts) < 4:
-        parts.append(background)
+        parts.append(f"放在当时的时代里看，{background}")
     return _compact_join(parts)
 
 
@@ -406,29 +558,151 @@ def _guide_highlight_output(fields: dict[str, str]) -> str:
     shape = fields.get("纹饰与造型", "").strip()
     function = fields.get("功能用途", "").strip()
     value = fields.get("文化价值", "").strip() or fields.get("历史意义", "").strip()
-    parts = [f"参观{name}时，可以先抓住它最有代表性的看点"]
+    parts = [f"看{name}的时候，不妨先注意它最有代表性的几个细节"]
     if shape:
-        parts.append(shape)
+        parts.append(f"先看这里，{shape}")
     if function:
-        parts.append(f"这些特征并不只是装饰，也和它的用途有关：{function}")
+        parts.append(f"这些地方不只是好看，也和实际用途连在一起，{function}")
     if value:
-        parts.append(f"因此，它为我们理解相关历史文化提供了线索：{value}")
+        if value.startswith(("反映", "体现", "展现", "折射", "说明", "见证", "对研究", "为研究")):
+            parts.append(f"也正因为这样，我们还能从中看到{_value_to_seen_clause(value)}")
+        else:
+            parts.append(f"也正因为这样，它也能帮助我们理解相关历史文化，因为{value}")
     return _compact_join(parts)
 
 def _guide_story_output(fields: dict[str, str]) -> str:
     name = _artifact_name(fields)
-    intro = _artifact_intro(fields)
+    identity_clause = _artifact_identity_clause(fields)
     story = fields.get("故事传说", "").strip()
     background = fields.get("历史背景", "").strip()
     value = fields.get("历史意义", "").strip() or fields.get("文化价值", "").strip()
-    parts = [f"如果把目光带回它所在的时代，{name}就不只是一件静静陈列的展品。{intro}"]
+    parts = [f"如果把时间拨回它所属的年代，{name}就不只是一件陈列在展柜里的文物"]
+    if identity_clause:
+        parts.append(identity_clause)
     if story:
         parts.append(story)
     elif background:
-        parts.append(background)
+        parts.append(f"放在当时来看，{background}")
     if value:
-        parts.append(f"它留给今天的重要意义在于，{value}")
+        if value.startswith(("反映", "体现", "展现", "折射", "说明", "见证", "对研究", "为研究")):
+            parts.append(f"所以说，今天我们还能从中看到{_value_to_seen_clause(value)}")
+        else:
+            parts.append(f"所以说，它留给今天的重要意义就在于{value}")
     return _compact_join(parts)
+
+def _load_llm_cache(path: Path) -> dict[str, str]:
+    cache: dict[str, str] = {}
+    if not path.exists():
+        return cache
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            key = str(row.get("key", "")).strip()
+            value = str(row.get("value", "")).strip()
+            if key and value:
+                cache[key] = value
+    return cache
+
+
+def _append_llm_cache(path: Path, key: str, value: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps({"key": key, "value": value}, ensure_ascii=False) + "\n")
+
+
+def _should_use_llm_generation(task: str, answer_field: str | None = None) -> bool:
+    if ANSWER_GENERATOR != "llm":
+        return False
+    if task == "identify":
+        return False
+    if task == "grounded_qa" and answer_field in SHORT_ANSWER_FIELDS:
+        return False
+    return True
+
+
+def _build_llm_target_prompt(
+    task: str,
+    instruction: str,
+    template_output: str,
+    fields: dict[str, str],
+    answer_field: str | None = None,
+) -> str:
+    name = _artifact_name(fields)
+    task_hint_map = {
+        "grounded_caption": "请生成一段自然、准确、适合普通观众收听的文物导览介绍。",
+        "grounded_guide_style": "请生成一段更像博物馆讲解员现场讲解的回答，突出历史背景、文化信息和讲解感。",
+        "grounded_overview_guide": "请生成一段约30秒的导览开场讲解。",
+        "grounded_highlight_guide": "请生成一段提醒观众重点观察看点的讲解。",
+        "grounded_story_guide": "请生成一段更有画面感和故事感的讲解。",
+        "grounded_qa": "请针对观众问题生成自然、准确的中文回答。",
+    }
+    task_hint = task_hint_map.get(task, "请生成自然、准确的中文导览回答。")
+    if task == "grounded_qa" and answer_field:
+        task_hint += f" 当前问题字段为：{answer_field}。"
+    return (
+        "你是一名经验丰富的中文博物馆导览员，现在要为多模态文物问答模型撰写训练回答。\n"
+        "你的目标不是复述资料字段，而是把可靠资料转化成自然、可信、适合观众收听的讲解语言。\n\n"
+        "请严格遵守以下要求：\n"
+        "1. 只能依据给定资料作答，不得编造名称、年代、用途、馆藏单位、历史背景等事实。\n"
+        "2. 回答要像导览员面对观众讲话，口语自然、通顺，有讲解感，但不要过度夸张。\n"
+        "3. 不要使用‘从导览的角度’‘从研究价值来看’‘如果从用途来看’这类生硬元话语。\n"
+        "4. 不要写成资料摘抄，不要机械罗列字段，不要照抄模板参考答案的句式。\n"
+        "5. 可以使用自然导览表达，如‘大家现在看到的是……’‘先看这里……’‘把它放回当时看……’。\n"
+        "6. 如果是问答型任务，先直接回答问题，再用一两句自然补充；如果是讲解型任务，写成完整连贯的一小段讲解。\n"
+        "7. 不要输出标题、标签、字段名、括号说明、分点或额外解释，只输出最终回答。\n\n"
+        f"文物名称：{name}\n"
+        f"任务类型：{task}\n"
+        f"任务要求：{task_hint}\n"
+        f"用户指令：{instruction}\n"
+        f"模板参考答案（仅供理解任务，不要照抄句式）：{template_output}\n"
+    )
+
+def _generate_output_with_llm(
+    task: str,
+    instruction: str,
+    template_output: str,
+    fields: dict[str, str],
+    answer_field: str | None = None,
+) -> str:
+    global LLM_CALL_COUNT
+    cache_key = _stable_hash(
+        json.dumps(
+            {
+                "task": task,
+                "instruction": instruction,
+                "template_output": template_output,
+                "artifact": _artifact_name(fields),
+                "answer_field": answer_field or "",
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+    )
+    cached = LLM_CACHE.get(cache_key, "").strip()
+    if cached:
+        return cached
+    if LLM_MAX_CALLS > 0 and LLM_CALL_COUNT >= LLM_MAX_CALLS:
+        raise RuntimeError(
+            "已达到本次运行允许的新 LLM 生成调用上限。可以直接重新运行同一命令继续，已缓存结果会自动复用。"
+        )
+    prompt = _build_llm_target_prompt(task, instruction, template_output, fields, answer_field)
+    output = call_llm(prompt).strip()
+    if not output:
+        raise RuntimeError(f"大模型未能为任务 {task} 生成有效训练回答。")
+    LLM_CACHE[cache_key] = output
+    LLM_CALL_COUNT += 1
+    if LLM_CACHE_PATH is not None:
+        _append_llm_cache(LLM_CACHE_PATH, cache_key, output)
+    return output
+
+
+
 
 def _build_lora_samples_for_image(
     image_row: dict[str, object],
@@ -436,6 +710,7 @@ def _build_lora_samples_for_image(
     reference_description: str,
     qa_pairs: list[dict[str, str]],
 ) -> list[dict[str, object]]:
+    del reference_description
     base = {
         "artifact_id": image_row["artifact_id"],
         "artifact_name": image_row["artifact_name"],
@@ -448,6 +723,30 @@ def _build_lora_samples_for_image(
     overview_text = _guide_overview_output(fields)
     highlight_text = _guide_highlight_output(fields)
     story_text = _guide_story_output(fields)
+    caption_text = _guide_caption_output(fields)
+    guide_style_text = _guide_style_output(fields)
+
+    def build_sample(
+        task: str,
+        instruction: str,
+        template_output: str,
+        answer_field: str | None = None,
+    ) -> dict[str, object]:
+        output = template_output
+        if _should_use_llm_generation(task, answer_field):
+            output = _generate_output_with_llm(task, instruction, template_output, fields, answer_field)
+        sample = {
+            **base,
+            "task": task,
+            "instruction": instruction,
+            "output": output,
+        }
+        if task != "identify":
+            sample["grounding_context"] = grounding_context
+        if answer_field:
+            sample["answer_field"] = answer_field
+        return sample
+
     samples: list[dict[str, object]] = [
         {
             **base,
@@ -455,17 +754,16 @@ def _build_lora_samples_for_image(
             "instruction": "请识别图片中的文物，并说明名称、时代、类别和馆藏单位。",
             "output": _identification_output(fields),
         },
-        {
-            **base,
-            "task": "grounded_caption",
-            "instruction": _with_grounding_context(
+        build_sample(
+            "grounded_caption",
+            _with_grounding_context(
                 "请以博物馆导览员口吻介绍图片中的文物，重点说明名称、时代、类别、用途和文化价值。",
                 grounding_context,
             ),
-            "output": reference_description,
-            "grounding_context": grounding_context,
-        },
+            caption_text,
+        ),
     ]
+
     guide_parts = [
         fields.get("历史背景", ""),
         fields.get("历史意义", ""),
@@ -473,61 +771,33 @@ def _build_lora_samples_for_image(
         fields.get("故事传说", ""),
     ]
     guide_text = " ".join(part.strip() for part in guide_parts if part.strip())
-    if guide_text:
+    if guide_text and guide_style_text:
         samples.append(
-            {
-                **base,
-                "task": "grounded_guide_style",
-                "instruction": _with_grounding_context(
-                    "请讲解这件文物的历史背景、历史意义和文化价值。",
-                    grounding_context,
-                ),
-                "output": guide_text,
-                "grounding_context": grounding_context,
-            }
+            build_sample(
+                "grounded_guide_style",
+                _with_grounding_context("请讲解这件文物的历史背景、历史意义和文化价值。", grounding_context),
+                guide_style_text,
+            )
         )
+
     for task_name, question, output in [
-        (
-            "grounded_overview_guide",
-            "请用约30秒的导览口吻，为普通观众介绍这件文物。",
-            overview_text,
-        ),
-        (
-            "grounded_highlight_guide",
-            "请告诉观众参观这件文物时最值得注意的看点。",
-            highlight_text,
-        ),
-        (
-            "grounded_story_guide",
-            "请用更有画面感的方式讲讲这件文物背后的历史或故事。",
-            story_text,
-        ),
+        ("grounded_overview_guide", "请用约30秒的导览口吻，为普通观众介绍这件文物。", overview_text),
+        ("grounded_highlight_guide", "请告诉观众参观这件文物时最值得注意的看点。", highlight_text),
+        ("grounded_story_guide", "请用更有画面感的方式讲讲这件文物背后的历史或故事。", story_text),
     ]:
         if output:
-            samples.append(
-                {
-                    **base,
-                    "task": task_name,
-                    "instruction": _with_grounding_context(question, grounding_context),
-                    "output": output,
-                    "grounding_context": grounding_context,
-                }
-            )
+            samples.append(build_sample(task_name, _with_grounding_context(question, grounding_context), output))
+
     for qa in qa_pairs:
         answer_field = qa["answer_field"]
-        samples.append(
-            {
-                **base,
-                "task": "grounded_qa",
-                "instruction": _with_grounding_context(qa["question"], grounding_context),
-                "output": _guide_answer_for_qa(answer_field, qa["answer"], fields),
-                "answer_field": answer_field,
-                "grounding_context": grounding_context,
-            }
-        )
+        instruction = _with_grounding_context(qa["question"], grounding_context)
+        template_output = _guide_answer_for_qa(answer_field, qa["answer"], fields)
+        samples.append(build_sample("grounded_qa", instruction, template_output, answer_field=answer_field))
     return samples
 
+
 def _build_samples(
+
     image_groups: dict[str, list[dict[str, str]]],
     kb_blocks: list[dict[str, object]],
     train_ratio: float,
@@ -651,6 +921,7 @@ def _build_samples(
         "dataset_type": "closed_set_lora",
         "split_policy": "Images are split within each artifact. Single-image artifacts are duplicated into train and test; extra images are assigned to train first.",
         "lora_sample_policy": "LoRA samples are aligned with vl_rag_lora and enhanced for guide style. Except for identify, samples include grounding_context; additional overview/highlight/story guide tasks teach museum-guide tone and richer explanations.",
+        "answer_generator": ANSWER_GENERATOR,
         "artifact_count": len(samples),
         "image_count": len(unique_image_keys),
         "image_assignment_count": image_assignment_count,
@@ -728,7 +999,18 @@ def _write_split_files(out_dir: Path, samples: list[dict[str, object]]) -> dict[
 
 
 def main() -> None:
+    global ANSWER_GENERATOR, LLM_CACHE, LLM_CACHE_PATH, LLM_MAX_CALLS, LLM_CALL_COUNT
     args = parse_args()
+    ANSWER_GENERATOR = args.answer_generator
+    LLM_MAX_CALLS = args.llm_max_calls
+    LLM_CALL_COUNT = 0
+    if ANSWER_GENERATOR == "llm":
+        LLM_CACHE_PATH = Path(args.llm_cache)
+        LLM_CACHE = _load_llm_cache(LLM_CACHE_PATH)
+        print(f"已加载 LLM 训练回答缓存：{len(LLM_CACHE)} 条")
+    else:
+        LLM_CACHE_PATH = None
+        LLM_CACHE = {}
     if args.train_ratio <= 0 or args.val_ratio < 0 or args.train_ratio + args.val_ratio >= 1:
         raise RuntimeError(
             "划分比例非法，请确保 train_ratio > 0、val_ratio >= 0 且 train_ratio + val_ratio < 1。"

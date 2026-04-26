@@ -18,6 +18,24 @@ from torch.utils.data import Dataset
 from scripts.finetune.common import read_jsonl, to_qwen25vl_messages
 
 
+TARGET_MODULE_PRESETS: dict[str, list[str]] = {
+    "qv": ["q_proj", "v_proj"],
+    "qkvo": ["q_proj", "k_proj", "v_proj", "o_proj"],
+    "qkvo_ffn": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+}
+
+
+def resolve_target_modules(target_mode: str, custom_modules: str) -> list[str]:
+    if target_mode == "custom":
+        modules = [item.strip() for item in custom_modules.split(",") if item.strip()]
+        if not modules:
+            raise RuntimeError("当 --target-mode custom 时，必须通过 --target-modules 提供至少一个模块名。")
+        return modules
+    if target_mode not in TARGET_MODULE_PRESETS:
+        raise RuntimeError(f"不支持的 target_mode: {target_mode}")
+    return TARGET_MODULE_PRESETS[target_mode]
+
+
 try:
     from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
     from transformers import (
@@ -125,6 +143,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--lora-r", type=int, default=16)
     parser.add_argument("--lora-alpha", type=int, default=32)
     parser.add_argument("--lora-dropout", type=float, default=0.05)
+    parser.add_argument("--target-mode", default="qkvo_ffn", choices=["qv", "qkvo", "qkvo_ffn", "custom"], help="Choose which projection modules receive LoRA adapters.")
+    parser.add_argument("--target-modules", default="", help="Comma-separated module names when --target-mode custom is used.")
     parser.add_argument("--no-4bit", action="store_true", help="Disable 4-bit QLoRA loading.")
     parser.add_argument("--no-gradient-checkpointing", action="store_true")
     parser.add_argument("--save-steps", type=int, default=200)
@@ -166,16 +186,45 @@ def main() -> None:
     if quantization_config is not None:
         model = prepare_model_for_kbit_training(model)
 
+    target_modules = resolve_target_modules(args.target_mode, args.target_modules)
+    print(f"LoRA target modules: {target_modules}")
+
     lora_config = LoraConfig(
         r=args.lora_r,
         lora_alpha=args.lora_alpha,
         lora_dropout=args.lora_dropout,
         bias="none",
         task_type="CAUSAL_LM",
-        target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+        target_modules=target_modules,
     )
     model = get_peft_model(model, lora_config)
     model.print_trainable_parameters()
+
+    train_config = {
+        "model_path": args.model_path,
+        "train_file": args.train_file,
+        "val_file": args.val_file,
+        "epochs": args.epochs,
+        "learning_rate": args.learning_rate,
+        "batch_size": args.batch_size,
+        "gradient_accumulation_steps": args.gradient_accumulation_steps,
+        "max_length": args.max_length,
+        "max_pixels": args.max_pixels,
+        "lora_r": args.lora_r,
+        "lora_alpha": args.lora_alpha,
+        "lora_dropout": args.lora_dropout,
+        "target_mode": args.target_mode,
+        "target_modules": target_modules,
+        "use_4bit": not args.no_4bit,
+        "gradient_checkpointing": not args.no_gradient_checkpointing,
+        "warmup_ratio": args.warmup_ratio,
+        "seed": args.seed,
+    }
+    Path(args.output_dir).mkdir(parents=True, exist_ok=True)
+    (Path(args.output_dir) / "lora_train_config.json").write_text(
+        __import__("json").dumps(train_config, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
     training_kwargs = dict(
         output_dir=args.output_dir,

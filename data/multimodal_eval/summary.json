@@ -2,6 +2,7 @@
   "dataset_type": "closed_set_lora",
   "split_policy": "Images are split within each artifact. Single-image artifacts are duplicated into train and test; extra images are assigned to train first.",
   "lora_sample_policy": "LoRA samples are aligned with vl_rag_lora and enhanced for guide style. Except for identify, samples include grounding_context; additional overview/highlight/story guide tasks teach museum-guide tone and richer explanations.",
+  "answer_generator": "template",
   "artifact_count": 377,
   "image_count": 961,
   "image_assignment_count": 1001,
