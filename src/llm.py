@@ -10,8 +10,6 @@ import urllib.request
 from io import BytesIO
 from pathlib import Path
 
-import dashscope
-from dashscope import Generation, MultiModalConversation
 from PIL import Image
 
 from .config import (
@@ -64,6 +62,9 @@ def _extract_multimodal_text(content: object) -> str:
 
 
 def _call_dashscope_messages(messages: list[dict], model: str = QWEN_MULTIMODAL_MODEL) -> str:
+    import dashscope
+    from dashscope import MultiModalConversation
+
     dashscope.api_key = get_api_key()
     resp = MultiModalConversation.call(
         model=model,
@@ -88,6 +89,9 @@ def _call_dashscope(prompt: str) -> str:
             ],
             model=QWEN_MODEL,
         )
+
+    import dashscope
+    from dashscope import Generation
 
     dashscope.api_key = get_api_key()
     resp = Generation.call(
@@ -161,6 +165,9 @@ def _call_ollama(prompt: str) -> str:
 
 
 def _call_dashscope_text_model(prompt: str, model: str, temperature: float) -> str:
+    import dashscope
+    from dashscope import Generation
+
     dashscope.api_key = get_api_key()
     resp = Generation.call(
         model=model,
