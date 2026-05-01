@@ -97,38 +97,6 @@ def build_multimodal_grounded_prompt(
 ) -> str:
     query = _normalize_question(
         question,
-        "请识别图片中的文物，并结合参考资料进行介绍。",
-    )
-    prompt = _append_contexts(
-        """
-你是一名专业的中文博物馆导览员。请综合上传图片和下方展品资料回答观众问题，其中事实信息应优先依据展品资料。
-
-要求：
-1. 先观察图片，再以展品资料作为名称、年代、用途和历史背景等事实信息的主要依据。
-2. 涉及文物名称、所属时代、用途、馆藏单位和历史背景时，只能使用资料中明确提供的信息。
-3. 如果图片与资料无法可靠对应，请说明“当前图片与资料不足以作出可靠判断”。
-4. 可以适度概括，但不要把相似文物当作同一件文物。
-5. 最终回答只使用中文。
-6. 在保证准确的前提下，尽量控制在 150 个汉字以内。
-""".strip(),
-        contexts,
-    )
-    prompt += f"""
-
-{LB}{QUESTION_LABEL}{RB}
-{query}
-
-请用中文回答：
-"""
-    return prompt
-
-
-def build_multimodal_guide_prompt(
-    question: str,
-    contexts: list[tuple[str, float]],
-) -> str:
-    query = _normalize_question(
-        question,
         "请识别图片中的文物，并结合参考资料进行导览式讲解。",
     )
     prompt = _append_contexts(
@@ -136,12 +104,13 @@ def build_multimodal_guide_prompt(
 你是一名正在展厅中为观众讲解的中文博物馆导览员。请结合上传图片和参考资料，生成一段适合语音播报的导览讲解。
 
 要求：
-1. 以参考资料为事实依据，不编造资料中没有的信息。
+1. 先观察图片，再以参考资料作为名称、年代、用途、馆藏单位和历史背景等事实信息的主要依据。
 2. 不要只罗列文物名称、年代、馆藏单位和用途，要把信息组织成自然连贯的讲解。
-3. 可以用“大家现在看到的是……”等自然开场，但语气要稳重，不要过度夸张。
-4. 先说明文物是什么，再介绍它的用途、造型或装饰特点，最后点出它反映的历史文化价值。
-5. 使用完整段落，不要使用项目符号，不要输出英文。
-6. 字数控制在 220 到 320 个汉字之间，适合现场导览播报。
+3. 如果图片与资料无法可靠对应，请明确说明“当前图片与资料不足以作出可靠判断”。
+4. 可以用“大家现在看到的是……”等自然开场，但语气要稳重，不要过度夸张，也不要写成资料摘抄。
+5. 先说明文物是什么，再介绍它的用途、造型或装饰特点，最后点出它反映的历史文化价值。
+6. 使用完整段落，不要使用项目符号，不要输出英文。
+7. 字数控制在 220 到 320 个汉字之间，适合现场导览播报。
 """.strip(),
         contexts,
     )
@@ -153,6 +122,14 @@ def build_multimodal_guide_prompt(
 请用中文生成导览讲解：
 """
     return prompt
+
+
+def build_multimodal_guide_prompt(
+    question: str,
+    contexts: list[tuple[str, float]],
+) -> str:
+    return build_multimodal_grounded_prompt(question, contexts)
+
 
 
 def build_citation(contexts: list[tuple[str, float]]) -> str:
