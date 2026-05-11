@@ -1,3 +1,9 @@
+"""图片检索模块。
+
+本模块加载图片 FAISS 索引和图片元数据，把用户上传图片编码成向量后，
+返回相似文物候选，并判断检索结果是否足够可信。
+"""
+
 from __future__ import annotations
 
 import json
@@ -14,6 +20,7 @@ _image_meta: list[dict[str, str]] | None = None
 
 
 def get_image_index():
+    """懒加载图片 FAISS 索引。"""
     global _image_index
     if _image_index is None:
         _image_index = faiss.read_index(IMAGE_INDEX_PATH)
@@ -21,6 +28,7 @@ def get_image_index():
 
 
 def get_image_meta() -> list[dict[str, str]]:
+    """懒加载图片索引对应的元数据。"""
     global _image_meta
     if _image_meta is None:
         _image_meta = json.loads(Path(IMAGE_META_PATH).read_text(encoding="utf-8"))
@@ -28,6 +36,11 @@ def get_image_meta() -> list[dict[str, str]]:
 
 
 def search_image(image: Image.Image, top_k: int = IMAGE_TOP_K) -> list[dict[str, str | float]]:
+    """检索与上传图片最相似的文物图片。
+
+    同一文物可能有多张图，因此这里会按 `detail_url` / `image_url` 去重，
+    每个候选文物只保留最高相似度的图片结果。
+    """
     query = encode_image(image)
     index = get_image_index()
     meta = get_image_meta()
@@ -61,6 +74,11 @@ def assess_image_match_confidence(
     min_score: float = IMAGE_MIN_SCORE,
     min_gap: float = IMAGE_MIN_GAP,
 ) -> tuple[bool, str]:
+    """判断图片检索结果是否足够可信。
+
+    返回 `(是否可信, 原因说明)`。如果最高分过低，或前两名过于接近，
+    系统会认为当前图片不足以稳定识别具体文物。
+    """
     if not matches:
         return False, "没有找到相似文物。"
 

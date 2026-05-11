@@ -1,3 +1,8 @@
+"""命令行进度显示工具。
+
+长时间评测和数据构建脚本会用它在终端显示已处理数量、耗时和预计剩余时间。
+"""
+
 from __future__ import annotations
 
 import sys
@@ -91,6 +96,7 @@ def iter_progress(
     label: str = "Progress",
     enabled: bool = True,
 ) -> Iterator[T]:
+    """为任意可迭代对象包一层进度显示。"""
     if total is None:
         try:
             total = len(items)  # type: ignore[arg-type]

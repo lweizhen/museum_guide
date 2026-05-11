@@ -1,4 +1,10 @@
-# src/config.py
+"""项目配置中心。
+
+本文件集中读取模型、知识库、索引、TTS、远程服务和裁判模型等配置。
+读取顺序是：`config.yaml` 优先，其次环境变量，最后使用代码默认值。
+这样本地演示、远程 GPU 评测和论文实验可以共用同一套配置入口。
+"""
+
 from __future__ import annotations
 
 import os
@@ -12,7 +18,10 @@ from pathlib import Path
 _yaml_cfg: dict = {}
 
 def _load_yaml_config() -> dict:
-    """尝试从项目根目录加载 config.yaml，找不到则返回空 dict。"""
+    """从项目根目录尝试加载 `config.yaml`。
+
+    返回空字典表示没有找到配置文件，后续会自动回退到环境变量或默认值。
+    """
     global _yaml_cfg
     if _yaml_cfg:
         return _yaml_cfg
@@ -39,10 +48,12 @@ def _load_yaml_config() -> dict:
 
 def _get(yaml_key_path: str, env_key: str, default: str) -> str:
     """
-    按优先级获取配置值：
-      1. config.yaml 中的嵌套键（用 . 分隔，如 'dashscope.api_key'）
-      2. 环境变量
-      3. 代码默认值
+    按统一优先级获取配置值。
+
+    参数：
+    - `yaml_key_path`：`config.yaml` 中的嵌套键路径，例如 `dashscope.api_key`
+    - `env_key`：对应的环境变量名
+    - `default`：前两者都不存在时使用的默认值
     """
     # 1) 尝试从 yaml 读取
     cfg = _load_yaml_config()
@@ -133,7 +144,9 @@ TEMPERATURE = float(_get("dashscope.temperature", "TEMPERATURE", "0.3"))
 def get_api_key() -> str:
     """
     获取 DashScope API Key。
-    优先从 config.yaml 读取，其次环境变量。
+
+    DashScope 分支调用通义千问 API 时会使用该函数；如果未配置则抛出
+    明确异常，避免后续请求失败时难以定位问题。
     """
     key = _get("dashscope.api_key", "DASHSCOPE_API_KEY", "")
     if not key:

@@ -1,3 +1,9 @@
+"""Hugging Face Qwen2.5-VL 推理封装。
+
+远程 GPU 服务和离线评测会使用该类加载 Qwen2.5-VL 基座模型，
+并可选加载 LoRA adapter，实现 direct、RAG、LoRA、RAG+LoRA 等链路。
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -5,7 +11,7 @@ from typing import Any
 
 
 class HfQwenVlGenerator:
-    """Lazy Hugging Face Qwen2.5-VL runner with optional LoRA adapter."""
+    """懒加载 Qwen2.5-VL 推理器，并支持可选 LoRA adapter。"""
 
     def __init__(
         self,
@@ -27,6 +33,7 @@ class HfQwenVlGenerator:
         self._process_vision_info: Any | None = None
 
     def load(self) -> None:
+        """加载 processor、基础模型和可选 LoRA adapter。"""
         if self.model is not None and self.processor is not None:
             return
 
@@ -72,6 +79,7 @@ class HfQwenVlGenerator:
         *,
         max_new_tokens: int = 256,
     ) -> str:
+        """根据提示词和可选图片生成回答文本。"""
         self.load()
         assert self.processor is not None
         assert self.model is not None

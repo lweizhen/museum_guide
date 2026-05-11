@@ -1,3 +1,13 @@
+"""提示词构造模块。
+
+系统会根据不同链路构造不同提示词：
+- 文本 RAG 使用 `build_prompt`
+- 多模态 direct 使用 `build_multimodal_direct_prompt`
+- 多模态 RAG / LoRA 使用 `build_multimodal_grounded_prompt`
+
+当前 `build_multimodal_grounded_prompt` 会自动区分字段型问题和导览型问题。
+"""
+
 from __future__ import annotations
 
 import re
@@ -15,10 +25,12 @@ CN_RP = "\uff09"
 
 
 def clip(text: str, n: int = 450) -> str:
+    """截断过长知识块，避免提示词过长。"""
     return text if len(text) <= n else text[:n] + "..."
 
 
 def extract_meta(block_text: str) -> tuple[str | None, str | None]:
+    """从知识块中提取文物名称和时代，用于生成资料来源。"""
     name = None
     era = None
 
@@ -34,11 +46,13 @@ def extract_meta(block_text: str) -> tuple[str | None, str | None]:
 
 
 def _normalize_question(question: str, default_question: str) -> str:
+    """清理用户问题；如果为空则使用默认问题。"""
     question = (question or "").strip()
     return question if question else default_question
 
 
 def _append_contexts(prefix: str, contexts: list[tuple[str, float]]) -> str:
+    """把检索到的知识块拼接进提示词。"""
     prompt = prefix + f"\n{LB}{DATA_LABEL}{RB}\n"
     for text, _score in contexts:
         prompt += f"- {clip(text)}\n"
@@ -46,6 +60,7 @@ def _append_contexts(prefix: str, contexts: list[tuple[str, float]]) -> str:
 
 
 def build_prompt(query: str, contexts: list[tuple[str, float]]) -> str:
+    """构造文本 RAG 提示词。"""
     prompt = _append_contexts(
         """
 你是一名专业的中文博物馆导览员。请只依据下方提供的展品资料回答观众问题。
@@ -70,6 +85,7 @@ def build_prompt(query: str, contexts: list[tuple[str, float]]) -> str:
 
 
 def build_multimodal_direct_prompt(question: str) -> str:
+    """构造不带外部知识的多模态直接问答提示词。"""
     query = _normalize_question(
         question,
         "请识别图片中的文物，并简要介绍它的名称、年代、类型和主要特征。",
@@ -130,11 +146,13 @@ _FACT_QUESTION_KEYWORDS = (
 
 
 def _looks_like_guide_request(question: str) -> bool:
+    """判断用户问题是否更像导览讲解请求。"""
     query = (question or "").strip()
     return any(keyword in query for keyword in _GUIDE_REQUEST_KEYWORDS)
 
 
 def _looks_like_fact_question(question: str) -> bool:
+    """判断用户问题是否更像字段型事实问题。"""
     query = (question or "").strip()
     if not query:
         return False
@@ -147,6 +165,7 @@ def _build_multimodal_fact_prompt(
     question: str,
     contexts: list[tuple[str, float]],
 ) -> str:
+    """构造字段型事实问答提示词，强调先直接回答问题。"""
     query = _normalize_question(
         question,
         "请识别这件文物，并回答观众提出的具体问题。",
@@ -179,6 +198,7 @@ def _build_multimodal_guide_prompt(
     question: str,
     contexts: list[tuple[str, float]],
 ) -> str:
+    """构造导览讲解型提示词，强调自然、连贯和适合播报。"""
     query = _normalize_question(
         question,
         "请为这件文物生成一段自然的中文导览讲解。",
@@ -212,6 +232,7 @@ def build_multimodal_grounded_prompt(
     question: str,
     contexts: list[tuple[str, float]],
 ) -> str:
+    """构造多模态 RAG 提示词，并按问题类型自动切换回答风格。"""
     if _looks_like_fact_question(question):
         return _build_multimodal_fact_prompt(question, contexts)
     return _build_multimodal_guide_prompt(question, contexts)
@@ -221,10 +242,12 @@ def build_multimodal_guide_prompt(
     question: str,
     contexts: list[tuple[str, float]],
 ) -> str:
+    """显式构造导览讲解提示词。"""
     return _build_multimodal_guide_prompt(question, contexts)
 
 
 def build_citation(contexts: list[tuple[str, float]]) -> str:
+    """根据检索上下文生成简短资料来源说明。"""
     sources: list[str] = []
     for text, _score in contexts:
         name, era = extract_meta(text)

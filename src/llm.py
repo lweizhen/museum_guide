@@ -1,4 +1,14 @@
-# src/llm.py
+"""大模型调用统一封装模块。
+
+系统中有三类大模型调用：
+1. 普通文本生成，用于文本 RAG 回答和训练数据生成。
+2. 多模态生成，用于图片 + 文本提示词问答。
+3. 裁判模型调用，用于实验评测中的语义裁判和导览质量评分。
+
+本模块把 DashScope、Ollama 和 OpenAI-compatible 接口统一成简单函数，
+上层代码不需要关心具体 provider 的请求格式。
+"""
+
 from __future__ import annotations
 
 import base64
@@ -34,11 +44,13 @@ from .config import (
 
 
 def _is_multimodal_model(model_name: str) -> bool:
+    """粗略判断 DashScope 模型名是否属于多模态模型。"""
     name = (model_name or "").lower()
     return ("qwen3.5" in name) or ("qwen-vl" in name) or ("vl" in name)
 
 
 def _is_ollama_multimodal_model(model_name: str) -> bool:
+    """粗略判断 Ollama 模型名是否支持图片输入。"""
     name = (model_name or "").lower()
     keywords = [
         "llava",
@@ -54,6 +66,7 @@ def _is_ollama_multimodal_model(model_name: str) -> bool:
 
 
 def _extract_multimodal_text(content: object) -> str:
+    """从 DashScope 多模态返回结构中提取文本内容。"""
     if isinstance(content, list):
         for block in content:
             if isinstance(block, dict) and "text" in block:
@@ -62,6 +75,7 @@ def _extract_multimodal_text(content: object) -> str:
 
 
 def _call_dashscope_messages(messages: list[dict], model: str = QWEN_MULTIMODAL_MODEL) -> str:
+    """调用 DashScope 多模态 conversation 接口。"""
     import dashscope
     from dashscope import MultiModalConversation
 
@@ -81,6 +95,7 @@ def _call_dashscope_messages(messages: list[dict], model: str = QWEN_MULTIMODAL_
 
 
 def _call_dashscope(prompt: str) -> str:
+    """根据配置调用 DashScope 文本或多模态模型。"""
     if _is_multimodal_model(QWEN_MODEL):
         return _call_dashscope_messages(
             [
@@ -106,6 +121,7 @@ def _call_dashscope(prompt: str) -> str:
 
 
 def _post_ollama(payload: dict, timeout_seconds: int = OLLAMA_TIMEOUT_SECONDS) -> str:
+    """向 Ollama `/api/generate` 发送请求，并返回生成文本。"""
     url = f"{OLLAMA_BASE_URL.rstrip('/')}/api/generate"
     requested_model = str(payload.get("model") or OLLAMA_MODEL)
     data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -149,6 +165,7 @@ def _call_ollama_model(
     temperature: float,
     timeout_seconds: int = OLLAMA_TIMEOUT_SECONDS,
 ) -> str:
+    """调用指定 Ollama 文本模型。"""
     payload = {
         "model": model,
         "prompt": prompt,
@@ -161,10 +178,12 @@ def _call_ollama_model(
 
 
 def _call_ollama(prompt: str) -> str:
+    """调用默认 Ollama 文本模型。"""
     return _call_ollama_model(prompt, OLLAMA_MODEL, OLLAMA_TEMPERATURE)
 
 
 def _call_dashscope_text_model(prompt: str, model: str, temperature: float) -> str:
+    """调用指定 DashScope 文本模型，主要供裁判模型分支使用。"""
     import dashscope
     from dashscope import Generation
 
@@ -181,6 +200,7 @@ def _call_dashscope_text_model(prompt: str, model: str, temperature: float) -> s
 
 
 def _call_openai_compatible(prompt: str, model: str) -> str:
+    """调用 OpenAI-compatible chat/completions 接口。"""
     if not JUDGE_API_KEY:
         raise RuntimeError(
             "Judge provider is openai, but no judge.api_key or JUDGE_API_KEY is configured."
@@ -231,12 +251,14 @@ def _call_openai_compatible(prompt: str, model: str) -> str:
 
 
 def _encode_image_to_base64(image: Image.Image) -> str:
+    """把 PIL 图片编码为 Ollama 多模态接口需要的 base64 字符串。"""
     buffer = BytesIO()
     image.save(buffer, format="PNG")
     return base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
 def _save_temp_image(image: Image.Image) -> Path:
+    """把图片临时保存到磁盘，供 DashScope 多模态接口读取。"""
     temp_dir = Path(OUTPUT_DIR) / "multimodal_uploads"
     temp_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.NamedTemporaryFile(
@@ -249,6 +271,7 @@ def _save_temp_image(image: Image.Image) -> Path:
 
 
 def _call_dashscope_multimodal(prompt: str, image: Image.Image) -> str:
+    """调用 DashScope 多模态模型进行图片问答。"""
     image_path = _save_temp_image(image)
     try:
         return _call_dashscope_messages(
@@ -268,6 +291,7 @@ def _call_dashscope_multimodal(prompt: str, image: Image.Image) -> str:
 
 
 def _call_ollama_multimodal(prompt: str, image: Image.Image) -> str:
+    """调用 Ollama 多模态模型进行图片问答。"""
     payload = {
         "model": OLLAMA_MULTIMODAL_MODEL,
         "prompt": prompt,
@@ -281,6 +305,7 @@ def _call_ollama_multimodal(prompt: str, image: Image.Image) -> str:
 
 
 def call_llm(prompt: str) -> str:
+    """调用当前配置的文本大模型。"""
     provider = (LLM_PROVIDER or "").strip().lower()
 
     if provider == "dashscope":
@@ -295,10 +320,10 @@ def call_llm(prompt: str) -> str:
 
 
 def call_judge_llm(prompt: str) -> str:
-    """Call the configured semantic judge model.
+    """调用当前配置的语义裁判模型。
 
-    The judge path is intentionally separate from the generation path so
-    evaluations can use a stronger or different model than the model under test.
+    裁判路径和普通生成路径分开，是为了在实验中允许使用更强或不同的模型
+    来评价被测模型输出。
     """
     provider = (JUDGE_PROVIDER or "same").strip().lower()
 
@@ -329,6 +354,7 @@ def call_judge_llm(prompt: str) -> str:
 
 
 def call_multimodal_llm(prompt: str, image: Image.Image) -> str:
+    """调用当前配置的多模态大模型。"""
     provider = (LLM_PROVIDER or "").strip().lower()
 
     if provider == "dashscope":

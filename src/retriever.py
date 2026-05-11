@@ -1,3 +1,9 @@
+"""文本知识库检索模块。
+
+本模块是文本 RAG 的核心：加载 FAISS 文本索引和知识库文档，
+把用户问题编码为向量，并返回相似的文物知识块。
+"""
+
 import faiss
 import numpy as np
 import re
@@ -10,6 +16,7 @@ _docs = None
 
 
 def get_index():
+    """懒加载文本 FAISS 索引。"""
     global _index
     if _index is None:
         _index = faiss.read_index(INDEX_PATH)
@@ -17,6 +24,7 @@ def get_index():
 
 
 def get_docs():
+    """懒加载统一知识库文档块。"""
     global _docs
     if _docs is None:
         _docs = load_docs()
@@ -76,6 +84,13 @@ def _expand_query_with_doc_aliases(query: str, docs: list[str]) -> str:
 
 
 def retrieve(query: str, top_k: int = TOP_K, threshold: float = THRESHOLD, margin: float = MARGIN):
+    """根据用户问题检索相关文物知识块。
+
+    检索策略包含三层：
+    1. 空问题直接返回空列表。
+    2. 如果问题中直接出现文物名称或别名，优先返回对应知识块。
+    3. 否则使用向量检索，并根据阈值和分数差距保留可信候选。
+    """
     index = get_index()
     docs = get_docs()
 

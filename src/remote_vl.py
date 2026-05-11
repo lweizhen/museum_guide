@@ -1,3 +1,9 @@
+"""远程 GPU 导览服务客户端。
+
+本地 Streamlit 页面不会直接加载 Qwen2.5-VL，而是通过 SSH 隧道把图片和问题
+发送到远程 FastAPI 服务。本模块负责封装 HTTP 请求和错误提示。
+"""
+
 from __future__ import annotations
 
 from io import BytesIO
@@ -20,6 +26,7 @@ def _post_image_request(
     base_url: str,
     timeout: int,
 ) -> GuideResult:
+    """把图片和问题发送到远程指定接口，并返回 JSON 结果。"""
     base_url = base_url.rstrip("/")
 
     buffer = BytesIO()
@@ -56,7 +63,7 @@ def call_remote_scheme_a(
     base_url: str = REMOTE_VL_BASE_URL,
     timeout: int = REMOTE_VL_TIMEOUT_SECONDS,
 ) -> GuideResult:
-    """Call remote Scheme A: image retrieval + text RAG + text LLM."""
+    """调用远程方案 A：图片检索 + 文本 RAG + 文本大模型。"""
 
     return _post_image_request(
         endpoint="/scheme-a/generate",
@@ -74,7 +81,7 @@ def call_remote_vl_rag_lora(
     base_url: str = REMOTE_VL_BASE_URL,
     timeout: int = REMOTE_VL_TIMEOUT_SECONDS,
 ) -> GuideResult:
-    """Call remote Scheme B4: image retrieval + RAG + Qwen2.5-VL LoRA."""
+    """调用远程方案 B4：图片检索 + RAG + Qwen2.5-VL LoRA。"""
 
     return _post_image_request(
         endpoint="/vl-rag-lora/generate",

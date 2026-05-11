@@ -1,3 +1,9 @@
+"""文本向量编码模块。
+
+文本检索链路会把用户问题和知识库文物块编码成向量，再用 FAISS 做语义检索。
+这里对 Hugging Face 缓存做了离线优先处理，适合远程 GPU 或无公网环境复现实验。
+"""
+
 from __future__ import annotations
 
 import os
@@ -16,6 +22,11 @@ _embed_model: SentenceTransformer | None = None
 
 
 def _resolve_local_model_path(model_name: str) -> str:
+    """把模型名解析为本地可用路径。
+
+    如果传入的是实际目录，直接返回；否则在 Hugging Face 缓存中查找最新快照。
+    找不到时返回原模型名，由 SentenceTransformer 自行处理。
+    """
     candidate = Path(model_name)
     if candidate.exists():
         return str(candidate)
@@ -45,6 +56,10 @@ def _resolve_local_model_path(model_name: str) -> str:
 
 
 def get_embed_model() -> SentenceTransformer:
+    """懒加载文本向量模型。
+
+    第一次调用时加载模型，后续复用全局对象，避免评测时重复加载模型。
+    """
     global _embed_model
     if _embed_model is None:
         model_ref = _resolve_local_model_path(EMBED_MODEL_NAME)
@@ -53,6 +68,10 @@ def get_embed_model() -> SentenceTransformer:
 
 
 def encode_texts(texts: list[str]) -> np.ndarray:
+    """把文本列表编码成 L2 归一化后的 float32 向量矩阵。
+
+    返回形状为 `(文本数量, 向量维度)`，可直接用于 FAISS 内积相似度检索。
+    """
     if not texts:
         raise RuntimeError("encode_texts 收到空 texts，请检查知识库读取是否正确。")
 
